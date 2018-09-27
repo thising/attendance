@@ -1,0 +1,7 @@
+manage/migrations/*
+*.txt
+*.sqlite3
+*.bak
+*.db
+*.ini
+*.conf

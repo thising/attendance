@@ -1,0 +1,27 @@
+{% if request.user.is_authenticated %}
+    <div class="page-header">
+        <h2>班级列表({{ class_count }})</h2>
+    </div>
+        {% for slices in class_list|slice:"3" %}
+            <div class="row">
+            {% for class in slices %}
+                <div class="col-sm-4">
+                <div class="panel panel-info">
+                    <div class="panel-heading">
+                        <a href="class.html?classcode={{ class.sharecode }}"><h3 class="panel-title">{{ class.classname }}</h3></a>
+                    </div>
+                    <ul class="list-group">
+                        <li class="list-group-item">班级人数: {{ class.student_set.all.count }}</li>
+                        <li class="list-group-item">考勤次数: {{ class.activity_set.all.count }}</li>
+                        <li class="list-group-item">最近更新: {{ class.activity_set.all.0.time|date:"Y-m-d H:i" }}</li>
+                    </ul>
+                    <div class="panel-footer text-right">
+                        <abbr title="将这个编码分享给你的朋友他们就可以进入你的班级了">{{ class.sharecode }}</small>
+                    </div>
+                </div>
+                </div>
+            {% endfor %}
+            </div>
+        {% endfor %}
+{% else %}
+{% endif %}

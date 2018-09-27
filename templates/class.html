@@ -1,0 +1,185 @@
+{% extends "base_main.html" %}
+
+{% block BLOCK_BODY %}
+<div class="row">
+    <div class="col-sm-6">
+        <div class="page-header">
+            <h2>班级信息</h2>
+        </div>
+        <ul class="list-group">
+            <li class="list-group-item">班级名称: {{ class.classname }}</li>
+            <li class="list-group-item">班级编号: {{ class.sharecode }}</li>
+
+            {% if is_owner %}
+            <li class="list-group-item">
+                <form role="form" action="update_class_password.html" method="post">
+                    <div class="form-group">
+                        {% csrf_token %}
+                        {% include "block_input_class_code.html" %}
+                        <label for="updateManagecode" class="sr-only">Update manage code</label>
+                        <input type="text" id="updateManagecode" class="form-control text-center" name="managecode" value="{{ class.managecode }}" placeholder="请输入管理密码" required>
+                        <p></p>
+                        <button class="btn btn-primary btn-block" type="submit">修改密码</button>
+                    </div>
+                </form>
+                {% endif %}
+            </li>
+            <li class="list-group-item">
+                <form role="form" action="create_activity.html" method="post">
+                    <div class="form-group">
+                        {% csrf_token %}
+                        {% include "block_input_class_code.html" %}
+                        {% if not is_owner %}
+                        {% if activities_today|length > 9 %}
+                        <label for="inputManagecode" class="text-danger">非老师每天最多只能新增10条记录</label>
+                        {% else %}
+                        <label for="inputManagecode" class="sr-only">Input manage code</label>
+                        <input type="text" id="inputManagecode" class="form-control text-center" name="managecode" placeholder="请输入管理密码" required>
+                        {% endif %}
+                        {% endif %}
+                        <p></p>
+                        <button class="btn btn-danger btn-block" type="submit">新增记录</button>
+                    </div>
+                </form>
+            </li>
+        </ul>
+    {% if activities_today %}
+    <div class="page-header">
+        <h2>记录审核 <small>今天({{ activities_today|length }})</small> </h2>
+    </div>
+        <ul class="list-group">
+            {% for activity in activities_today %}
+                <li class="list-group-item">
+                    <form role="form" action="review_activity.html" method="post">
+                        <!-- <div class="form-group"> -->
+                            {% csrf_token %}
+                            {% include "block_input_class_code.html" %}
+                            <input type="hidden" name="aid" value="{{ activity.id }}">
+                            <button class="btn btn-sm btn-default btn-block" type="submit">
+                                <div class="text-left">
+                                    {{ activity.time | date:"Y-m-d H:i" }} | {{ activity.get_activity_type_display }} | {{ activity.name|truncatechars:"10" }}
+                                </div>
+                            </button>
+                        <!-- </div> -->
+                    </form>
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+    </div>
+    {% if is_owner %}
+        <div class="col-sm-6">
+        <div class="page-header">
+            <h2>记录审核 <small>最近15条</small> </h2>
+        </div>
+        <ul class="list-group">
+            {% for activity in activities %}
+            <li class="list-group-item">
+                <form role="form" action="review_activity.html" method="post">
+                    <!-- <div class="form-group"> -->
+                        {% csrf_token %}
+                        {% include "block_input_class_code.html" %}
+                        <input type="hidden" name="aid" value="{{ activity.id }}">
+                        <button class="btn btn-sm btn-default btn-block" type="submit">
+                            <div class="text-left">
+                                {{ activity.time | date:"Y-m-d H:i" }} | {{ activity.get_activity_type_display }} | {{ activity.name|truncatechars:"10" }}
+                            </div>
+                        </button>
+                        <!-- </div> -->
+                    </form>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+<div class="row">
+    <div class="col-sm-6">
+        <div class="page-header">
+            <!--h2>统计汇总 <small>{{ today|date:"Y年m月" }}</small> </h2-->
+            <h2>统计汇总 <small>本月</small> </h2>
+        </div>
+        {% if summary|length > 0 %}
+        <div class="text-center">
+            <table class="table table-striped table-bordered table-condensed">
+                <tr>
+                    <th rowspan="2">学号</th>
+                    <th rowspan="2">姓名</th>
+                    <th rowspan="2">性别</th>
+                    <th colspan="3">考勤</th>
+                    <th colspan="3">活动</th>
+                    <th rowspan="2">分数</th>
+                </tr>
+                <tr>
+                    <th>缺勤</th>
+                    <th>迟到</th>
+                    <th>请假</th>
+                    <th>普通</th>
+                    <th>中级</th>
+                    <th>重要</th>
+                </tr>
+                {% for item in summary %}
+                    <tr>
+                        <td>{{ item.0 }}</td>
+                        <td>{{ item.1 }}</td>
+                        <td>{{ item.2 }}</td>
+                        <td>{{ item.3 }}</td>
+                        <td>{{ item.4 }}</td>
+                        <td>{{ item.5 }}</td>
+                        <td>{{ item.6 }}</td>
+                        <td>{{ item.7 }}</td>
+                        <td>{{ item.8 }}</td>
+                        <td>{{ item.9 }}</td>
+                    </tr>
+                {% endfor %}
+            </table>
+        </div>
+        {% else %}
+        <p class="text-center text-warning">您暂时没有这个月的数据</p>
+        {% endif %}
+    </div>
+    <div class="col-sm-6">
+        <div class="page-header">
+            <h2>统计汇总 <small>上月</small> </h2>
+        </div>
+        {% if summary_lm|length > 0 %}
+        <div class="text-center">
+            <table class="table table-striped table-bordered table-condensed">
+                <tr>
+                    <th rowspan="2">学号</th>
+                    <th rowspan="2">姓名</th>
+                    <th rowspan="2">性别</th>
+                    <th colspan="3">考勤</th>
+                    <th colspan="3">活动</th>
+                    <th rowspan="2">分数</th>
+                </tr>
+                <tr>
+                    <th>缺勤</th>
+                    <th>迟到</th>
+                    <th>请假</th>
+                    <th>普通</th>
+                    <th>中级</th>
+                    <th>重要</th>
+                </tr>
+                {% for item in summary_lm %}
+                    <tr>
+                        <td>{{ item.0 }}</td>
+                        <td>{{ item.1 }}</td>
+                        <td>{{ item.2 }}</td>
+                        <td>{{ item.3 }}</td>
+                        <td>{{ item.4 }}</td>
+                        <td>{{ item.5 }}</td>
+                        <td>{{ item.6 }}</td>
+                        <td>{{ item.7 }}</td>
+                        <td>{{ item.8 }}</td>
+                        <td>{{ item.9 }}</td>
+                    </tr>
+                {% endfor %}
+            </table>
+        </div>
+        {% else %}
+        <p class="text-center text-warning">您暂时没有这个月的数据</p>
+        {% endif %}
+    </div>
+{% endif %}
+</div>
+{% endblock %}

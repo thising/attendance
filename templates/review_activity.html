@@ -1,0 +1,67 @@
+{% extends "base_main.html" %}
+
+{% block BLOCK_BODY %}
+<div class="page-header">
+    <h2>{{ class.classname }} 审核记录</h2>
+</div>
+<form class="text-center" role="form" action="release_activity.html" method="post">
+    {% csrf_token %}
+    {% include "block_input_class_code.html" %}
+    <input type="hidden" name="aid" value="{{ activity.id }}">
+    <div class="form-group">
+        <label for="inputActivityTime" class="sr-only">记录类型</label>
+        <h3 class="text-primary">{% if is_class %} 考勤点名 {% elif is_activity %} 活动参与 {% endif %}</h3>
+    </div>
+    <div class="form-group">
+        <label for="inputActivityTime" class="sr-only">记录时间</label>
+        <label>{{ activity.time | date:"Y-m-d H:i" }}</label>
+    </div>
+    <div class="form-group">
+        <label for="inputActivityName" class="sr-only">记录名称</label>
+        <input type="text" id="inputActivityName" class="form-control text-center" name="name" value="{{ activity.name }}" placeholder="请输入活动名称" required>
+    </div>
+    <p></p>
+    {% if is_class %}
+    <div id="classtypelist" class="table-responsive text-center">
+        <table class="table table-striped table-bordered table-condensed">
+            <tr><th>学号</th><th>姓名</th><!--th>性别</th--><th colspan="4">考勤</th></tr>
+            {% for student in students %}
+            <tr>
+                <td>{{ student.1 }}</td>
+                <td>{{ student.2 }}</td>
+                <!--td>{{ student.3 }}</td-->
+                <td><input type="radio" name="scid_{{ student.0 }}" value="present" {% if student.4 == "present" %} checked {% endif %}> 正常</td>
+                <td><input type="radio" name="scid_{{ student.0 }}" value="leave" {% if student.4 == "leave" %} checked {% endif %}> 请假</td>
+                <td><input type="radio" name="scid_{{ student.0 }}" value="late" {% if student.4 == "late" %} checked {% endif %}> 迟到</td>
+                <td><input type="radio" name="scid_{{ student.0 }}" value="absent" {% if student.4 == "absent" %} checked {% endif %}> 缺席</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% elif is_activity %}
+    <div id="activitytypelist" class="table-responsive text-center">
+        <table class="table table-striped table-bordered table-condensed">
+            <tr><th>学号</th><th>姓名</th><!--th>性别</th--><th colspan="4">活动级别</th></tr>
+            {% for student in students %}
+            <tr>
+                <td>{{ student.1 }}</td>
+                <td>{{ student.2 }}</td>
+                <!--td>{{ student.3 }}</td-->
+                <td><input type="radio" name="said_{{ student.0 }}" value="none" {% if student.5 == "none" %} checked {% endif %}> 未参加</td>
+                <td><input type="radio" name="said_{{ student.0 }}" value="low" {% if student.5 == "low" %} checked {% endif %}> 一般</td>
+                <td><input type="radio" name="said_{{ student.0 }}" value="mid" {% if student.5 == "mid" %} checked {% endif %}> 中级</td>
+                <td><input type="radio" name="said_{{ student.0 }}" value="high" {% if student.5 == "high" %} checked {% endif %}> 重要</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% endif %}
+    {% if not is_owner %}
+    <label for="inputManagecode" class="sr-only">Input manage code</label>
+    <input type="text" id="inputManagecode" class="form-control text-center" name="managecode" placeholder="请输入管理密码" required>
+    {% endif %}
+    <p></p>
+    <button class="btn btn-primary btn-block" type="submit">保存记录</button>
+    <a class="btn btn-danger btn-block" href="class.html?classcode={{ class.sharecode }}">取消</a>
+</form>
+{% endblock %}
