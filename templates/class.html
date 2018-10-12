@@ -122,12 +122,12 @@
                         <td>{{ item.0 }}</td>
                         <td>{{ item.1 }}</td>
                         <td>{{ item.2 }}</td>
-                        <td>{{ item.3 }}</td>
-                        <td>{{ item.4 }}</td>
-                        <td>{{ item.5 }}</td>
-                        <td>{{ item.6 }}</td>
-                        <td>{{ item.7 }}</td>
-                        <td>{{ item.8 }}</td>
+                        <td>{% if item.3 > 0 %}<span class="label label-danger">{% else %}<span>{% endif %}{{ item.3 }}</span></td>
+                        <td>{% if item.4 > 0 %}<span class="label label-danger">{% else %}<span>{% endif %}{{ item.4 }}</span></td>
+                        <td>{% if item.5 > 0 %}<span class="label label-danger">{% else %}<span>{% endif %}{{ item.5 }}</span></td>
+                        <td>{% if item.6 > 0 %}<span class="label label-success">{% else %}<span>{% endif %}{{ item.6 }}</span></td>
+                        <td>{% if item.7 > 0 %}<span class="label label-success">{% else %}<span>{% endif %}{{ item.7 }}</span></td>
+                        <td>{% if item.8 > 0 %}<span class="label label-success">{% else %}<span>{% endif %}{{ item.8 }}</span></td>
                         <td>{{ item.9 }}</td>
                     </tr>
                 {% endfor %}
@@ -165,12 +165,12 @@
                         <td>{{ item.0 }}</td>
                         <td>{{ item.1 }}</td>
                         <td>{{ item.2 }}</td>
-                        <td>{{ item.3 }}</td>
-                        <td>{{ item.4 }}</td>
-                        <td>{{ item.5 }}</td>
-                        <td>{{ item.6 }}</td>
-                        <td>{{ item.7 }}</td>
-                        <td>{{ item.8 }}</td>
+                        <td>{% if item.3 > 0 %}<span class="label label-danger">{% else %}<span>{% endif %}{{ item.3 }}</span></td>
+                        <td>{% if item.4 > 0 %}<span class="label label-danger">{% else %}<span>{% endif %}{{ item.4 }}</span></td>
+                        <td>{% if item.5 > 0 %}<span class="label label-danger">{% else %}<span>{% endif %}{{ item.5 }}</span></td>
+                        <td>{% if item.6 > 0 %}<span class="label label-success">{% else %}<span>{% endif %}{{ item.6 }}</span></td>
+                        <td>{% if item.7 > 0 %}<span class="label label-success">{% else %}<span>{% endif %}{{ item.7 }}</span></td>
+                        <td>{% if item.8 > 0 %}<span class="label label-success">{% else %}<span>{% endif %}{{ item.8 }}</span></td>
                         <td>{{ item.9 }}</td>
                     </tr>
                 {% endfor %}

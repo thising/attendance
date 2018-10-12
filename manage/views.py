@@ -14,17 +14,19 @@ def index(request):
     class_list = None
     to_show = None
     if request.user.is_authenticated:
+        summary_tm = []
         class_list = Class.objects.filter(owner = request.user)
         to_show = []
         line = []
         for item in class_list:
+            summary_tm += [s.summary_term() for s in item.student_set.all()]
             line += [item]
             if len(line) == 3:
                 to_show += [line]
                 line = []
         if len(line) > 0:
             to_show += [line]
-        return render(request, 'index.html', {"class_list": to_show, "class_count": 0 if class_list is None else len(class_list)})
+        return render(request, 'index.html', {"class_list": to_show, "class_count": 0 if class_list is None else len(class_list), "summary_tm":summary_tm})
     return render(request, 'index.html')
 
 def user_login(request):
@@ -68,8 +70,8 @@ def class_info(request):
                 item_lm = student.summary_last_month()
                 if item_lm:
                     summary_last_month += [item_lm]
-        
-        activities_today = current_class.activity_set.all().filter(time__gt = datetime(today.year, today.month, today.day))
+
+        activities_today = current_class.activity_set.filter(time__gt = datetime(today.year, today.month, today.day))
 
         return render(request, "class.html", {
                 "class": current_class,
@@ -79,7 +81,7 @@ def class_info(request):
                 "summary": summary,
                 "summary_lm": summary_last_month,
                 "today": today,
-            })
+            })    
     else:
         return redirect("index.html")
 

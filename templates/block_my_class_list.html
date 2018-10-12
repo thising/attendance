@@ -12,7 +12,7 @@
                     </div>
                     <ul class="list-group">
                         <li class="list-group-item">班级人数: {{ class.student_set.all.count }}</li>
-                        <li class="list-group-item">考勤次数: {{ class.activity_set.all.count }}</li>
+                        <li class="list-group-item">记录次数: {{ class.activity_set.all.count }}</li>
                         <li class="list-group-item">最近更新: {{ class.activity_set.all.0.time|date:"Y-m-d H:i" }}</li>
                     </ul>
                     <div class="panel-footer text-right">
@@ -23,5 +23,46 @@
             {% endfor %}
             </div>
         {% endfor %}
+    <div class="page-header">
+        <h2>学期汇总</h2>
+    </div>
+    {% if summary_tm|length > 0 %}
+    <div class="text-center">
+        <table class="table table-striped table-bordered table-condensed">
+            <tr>
+                <th rowspan="2">学号</th>
+                <th rowspan="2">姓名</th>
+                <th rowspan="2">性别</th>
+                <th colspan="3">考勤</th>
+                <th colspan="3">活动</th>
+                <th rowspan="2">分数</th>
+            </tr>
+            <tr>
+                <th>缺勤</th>
+                <th>迟到</th>
+                <th>请假</th>
+                <th>普通</th>
+                <th>中级</th>
+                <th>重要</th>
+            </tr>
+            {% for item in summary_tm %}
+                <tr>
+                    <td>{{ item.0 }}</td>
+                    <td>{{ item.1 }}</td>
+                    <td>{{ item.2 }}</td>
+                    <td>{% if item.3 > 0 %}<span class="label label-danger">{% else %}<span>{% endif %}{{ item.3 }}</span></td>
+                    <td>{% if item.4 > 0 %}<span class="label label-danger">{% else %}<span>{% endif %}{{ item.4 }}</span></td>
+                    <td>{% if item.5 > 0 %}<span class="label label-danger">{% else %}<span>{% endif %}{{ item.5 }}</span></td>
+                    <td>{% if item.6 > 0 %}<span class="label label-success">{% else %}<span>{% endif %}{{ item.6 }}</span></td>
+                    <td>{% if item.7 > 0 %}<span class="label label-success">{% else %}<span>{% endif %}{{ item.7 }}</span></td>
+                    <td>{% if item.8 > 0 %}<span class="label label-success">{% else %}<span>{% endif %}{{ item.8 }}</span></td>
+                    <td>{{ item.9 }}</td>
+                </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% else %}
+    <p class="text-center text-warning">您暂时没有这个学期的数据</p>
+    {% endif %}
 {% else %}
 {% endif %}

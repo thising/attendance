@@ -1,6 +1,7 @@
 # -*- coding:utf-8 -*-
 
 from django.db import models
+from django.db.models import Q
 from django.contrib.auth.models import User
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
@@ -44,7 +45,7 @@ class Student(models.Model):
     inclass = models.ForeignKey(Class, models.CASCADE)
 
     def __str__(self):
-        return self.number + " | " + self.name
+        return self.number + " | " + self.name + " | " + self.inclass.classname
 
     def summary_current_month(self):
         today = datetime.now()
@@ -70,7 +71,7 @@ class Student(models.Model):
         else:
             year -= 1
 
-        return summary_total_avg(year, month)
+        return self.summary_total_avg(year, month)
 
 
     def summary_month(self, year, month):
