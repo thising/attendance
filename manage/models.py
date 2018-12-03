@@ -186,7 +186,7 @@ class SummaryCount(models.Model):
         total = 60 \
             + self.absent_count      * (-2) \
             + self.late_count        * (-1) \
-            + self.leave_count       * (-1) \
+            + self.leave_count       * ( 0) \
             + self.low_count         * ( 1) \
             + self.mid_count         * ( 3) \
             + self.high_count        * ( 5)
