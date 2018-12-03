@@ -16,7 +16,6 @@
 {% block BLOCK_BODY %}
     <form class="form-signin" action="login.html" method="post">
         {% csrf_token %}
-        <input type="hidden" name="next" value="{{ request.GET.next }}">
         <h2 class="form-signin-heading">学生操行管理系统</h2>
         <label for="inputEmail" class="sr-only">用户名</label>
         <input type="text" id="username" class="form-control" name="username" placeholder="请输入用户名" required autofocus>

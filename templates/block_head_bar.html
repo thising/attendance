@@ -18,7 +18,7 @@
                     {% if request.user.is_authenticated %}
                         <a href="#">你好, {{ user.username }}</a>
                     {% else %}
-                        <a href="{% url 'login' %}?next={{ request.get_full_path|urlencode }}">登录</a>
+                        <a href="login.html">登录</a>
                     {% endif %}
                 </li>
                 {% if request.user.is_authenticated %}
