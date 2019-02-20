@@ -109,7 +109,7 @@ class Student(models.Model):
             mid += sc.mid_count
             high += sc.high_count
             score += sc.score()
-        score = score / scs.count() * 1.0
+        score = 0 if scs.count() == 0 else (score / scs.count() * 1.0)
 
         return (
                 self.number, 

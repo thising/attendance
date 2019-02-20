@@ -20,9 +20,9 @@ from django.conf.urls import url
 from manage import views as manage_views
 
 urlpatterns = [
-    path('ams/admin/', admin.site.urls),
+    path('admin/', admin.site.urls),
 
-    path('ams/', include('manage.urls')),
+    path('', include('manage.urls')),
 
 #    url(r'^$', manage_views.index, name='index'), # 首页
 #    url(r'^index.html$', manage_views.index, name='index'), # 首页
