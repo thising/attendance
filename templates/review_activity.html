@@ -48,9 +48,9 @@
                 <td>{{ student.2 }}</td>
                 <!--td>{{ student.3 }}</td-->
                 <td><input type="radio" name="said_{{ student.0 }}" value="none" {% if student.5 == "none" %} checked {% endif %}> 未参加</td>
-                <td><input type="radio" name="said_{{ student.0 }}" value="low" {% if student.5 == "low" %} checked {% endif %}> 一般</td>
-                <td><input type="radio" name="said_{{ student.0 }}" value="mid" {% if student.5 == "mid" %} checked {% endif %}> 中级</td>
-                <td><input type="radio" name="said_{{ student.0 }}" value="high" {% if student.5 == "high" %} checked {% endif %}> 重要</td>
+                <td><input type="radio" name="said_{{ student.0 }}" value="low" {% if student.5 == "low" %} checked {% endif %}> 班级</td>
+                <td><input type="radio" name="said_{{ student.0 }}" value="mid" {% if student.5 == "mid" %} checked {% endif %}> 院级</td>
+                <td><input type="radio" name="said_{{ student.0 }}" value="high" {% if student.5 == "high" %} checked {% endif %}> 校级</td>
             </tr>
             {% endfor %}
         </table>

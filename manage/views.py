@@ -15,18 +15,20 @@ def index(request):
     to_show = None
     if request.user.is_authenticated:
         summary_tm = []
+        reports_tm = []
         class_list = Class.objects.filter(owner = request.user)
         to_show = []
         line = []
         for item in class_list:
-            summary_tm += [s.summary_term() for s in item.student_set.all()]
+            summary_tm += [{"class" : item.id, "summary" : [s.summary_term() for s in item.student_set.all()]}]
+            reports_tm += [{"number" : s.number, "name": s.name, "reports": s.report_term()} for s in item.student_set.all()]
             line += [item]
             if len(line) == 3:
                 to_show += [line]
                 line = []
         if len(line) > 0:
             to_show += [line]
-        return render(request, 'index.html', {"class_list": to_show, "class_count": 0 if class_list is None else len(class_list), "summary_tm":summary_tm})
+        return render(request, 'index.html', {"class_list": to_show, "class_count": 0 if class_list is None else len(class_list), "summary_tm":summary_tm, "reports_tm":reports_tm})
     return render(request, 'index.html')
 
 def user_login(request):

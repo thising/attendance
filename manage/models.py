@@ -73,6 +73,19 @@ class Student(models.Model):
 
         return self.summary_total_avg(year, month)
 
+    def report_term(self):
+        today = datetime.now()
+        year = today.year
+        month = today.month
+        if month >= 9:
+            month = 9
+        elif month >= 2:
+            month = 2
+        else:
+            year -= 1
+
+        return self.report_detail(year, month)
+
 
     def summary_month(self, year, month):
         try:
@@ -121,9 +134,17 @@ class Student(models.Model):
                 low, 
                 mid, 
                 high, 
-                score
+                score,
+                absent + late + leave + low + mid + high > 0
             )
 
+    def report_detail(self, year, month):
+        ret = []
+        reports = self.report_set.filter((Q(activity__time__year = year) & Q(activity__time__month__gte = month)) | Q(activity__time__year__gt = year))
+        for item in reports:
+            ret += [(item.activity.time.strftime("%Y-%m-%d %H:%M"), item.activity.name, item.get_status_display() if item.activity.activity_type == 'class' else item.get_level_display())]
+
+        return ret
 
     class Meta:
         ordering = ["number"]
@@ -161,15 +182,15 @@ class Report(models.Model):
 
     enum_activity_level = (
         ('none', '未参加'),
-        ('low', '一般'),
-        ('mid', '中级'),
-        ('high', '重要'),
+        ('low', '班级'),
+        ('mid', '院级'),
+        ('high', '校级'),
     )
 
     activity = models.ForeignKey(Activity, models.CASCADE)
     student = models.ForeignKey(Student, models.CASCADE)
     status = models.CharField('考勤状态', choices = enum_student_status, max_length = 20, default = 'present')
-    level = models.CharField('参与情况', choices = enum_student_status, max_length = 20, default = 'none')
+    level = models.CharField('参与情况', choices = enum_activity_level, max_length = 20, default = 'none')
 
 class SummaryCount(models.Model):
     student = models.ForeignKey(Student, models.CASCADE)

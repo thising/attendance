@@ -46,9 +46,9 @@
                 <td>{{ student.name }}</td>
                 <!--td>{{ student.get_sex_display }}</td-->
                 <td><input type="radio" name="said_{{ student.id }}" value="none" checked> 未参加</td>
-                <td><input type="radio" name="said_{{ student.id }}" value="low"> 一般</td>
-                <td><input type="radio" name="said_{{ student.id }}" value="mid"> 中级</td>
-                <td><input type="radio" name="said_{{ student.id }}" value="high"> 重要</td>
+                <td><input type="radio" name="said_{{ student.id }}" value="low"> 班级</td>
+                <td><input type="radio" name="said_{{ student.id }}" value="mid"> 院级</td>
+                <td><input type="radio" name="said_{{ student.id }}" value="high"> 校级</td>
             </tr>
             {% endfor %}
         </table>
