@@ -63,5 +63,11 @@
         	$("#classbox0 :input:first").attr("checked", false);
         }
     });
+
+    // 学生学期简报对话框
+    $('.student-term-report-modal').on('click', function(e){
+      e.preventDefault();
+      $('#student_term_reports').modal('show').load($(this).attr('href'));
+  });
 </script> 
 {% endblock %}

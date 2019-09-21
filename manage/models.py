@@ -135,14 +135,15 @@ class Student(models.Model):
                 mid, 
                 high, 
                 score,
-                absent + late + leave + low + mid + high > 0
+                absent + late + leave + low + mid + high > 0,
+                self.id
             )
 
     def report_detail(self, year, month):
         ret = []
         reports = self.report_set.filter((Q(activity__time__year = year) & Q(activity__time__month__gte = month)) | Q(activity__time__year__gt = year))
         for item in reports:
-            ret += [(item.activity.time.strftime("%Y-%m-%d %H:%M"), item.activity.name, item.get_status_display() if item.activity.activity_type == 'class' else item.get_level_display())]
+            ret += [(item.activity.time.strftime("%Y-%m-%d %H:%M"), item.activity.name, item.get_status_display() if item.activity.activity_type == 'class' else item.get_level_display(), item.activity.activity_type == 'class')]
 
         return ret
 

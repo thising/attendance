@@ -12,6 +12,7 @@ urlpatterns = [
     url(r'^login.html$', manage_views.user_login, name='login'), # 登录
     url(r'^logout.html$', manage_views.user_logout, name='logout'), # 注销
     url(r'^class.html$', manage_views.class_info, name='classinfo'), # 班级信息
+    url(r'^term_reports.html$', manage_views.student_term_reports, name='studenttermreport'), # 学生学期简报
     url(r'^update_class_password.html$', manage_views.update_class, name='updateclass'), # 修改班级密码
     url(r'^create_activity.html$', manage_views.create_activity, name='createactivity'), # 创建活动
     url(r'^save_activity.html$', manage_views.save_activity, name='saveactivity'), # 保存活动
