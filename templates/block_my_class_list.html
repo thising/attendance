@@ -31,16 +31,12 @@
 
     <div class="btn-toolbar" role="toolbar" aria-label="Toolbar with button groups">
         <div id="classbox0" class="btn-group" data-toggle="buttons">
-            <label class="btn btn-outline-danger">
-                <input id="allclasses" type="checkbox" autocomplete="off"> 所有
-            </label>
+            <button id="class_all" type="button" class="btn">所有</button>
         </div>
         <div id="classbox1" class="btn-group" data-toggle="buttons">
             {% for slices in class_list %}
             {% for class in slices %}
-            <label class="btn btn-outline-dark">
-                <input id="class_{{ class.id }}" type="checkbox" autocomplete="off"> {{ class.classname }}
-            </label>
+            <button id="class_{{ class.id }}" type="button" class="btn">{{ class.classname }}</button>
             {% endfor %}
             {% endfor %}
         </div>
