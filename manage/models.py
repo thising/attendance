@@ -71,6 +71,7 @@ class Student(models.Model):
         else:
             year -= 1
 
+        # return self.summary_total_avg(2019, 9)
         return self.summary_total_avg(year, month)
 
     def report_term(self):
