@@ -144,11 +144,13 @@ def save_activity(request):
                         )
             elif activity_type == "activity":
                 level = request.POST.get("said_%d" % student.id, None)
+                discipline = request.POST.get("sdid_%d" % student.id, None)
                 if level and level != "none":
                     report = Report(
                             activity = activity,
                             student = student,
-                            level = level
+                            level = level,
+                            discipline = discipline
                         )
             else:
                 pass
@@ -174,6 +176,7 @@ def review_activity(request):
         for student in students:
             status = "present"
             level = "none"
+            discipline = "none"
             report = None
 
             try:
@@ -186,6 +189,7 @@ def review_activity(request):
                     status = report.status
                 elif activity.activity_type == "activity":
                     level = report.level
+                    discipline = report.discipline
 
             to_show += [(
                     student.id,
@@ -193,7 +197,8 @@ def review_activity(request):
                     student.name,
                     student.get_sex_display(),
                     status,
-                    level
+                    level,
+                    discipline
                 )]
 
         return render(request, "review_activity.html", {
@@ -255,10 +260,12 @@ def release_activity(request):
                             pass
                 elif activity.activity_type == "activity":
                     level = request.POST.get("said_%d" % student.id, None)
+                    discipline = request.POST.get("sdid_%d" % student.id, None)
                     if level:
                         if report:
                             if level != "none":
                                 report.level = level
+                                report.discipline = discipline
                             else:
                                 report.delete()
                                 report = None
@@ -266,7 +273,8 @@ def release_activity(request):
                             report = Report(
                                 activity = activity,
                                 student = student,
-                                level = level
+                                level = level,
+                                discipline = discipline
                                 )
                         else:
                             pass

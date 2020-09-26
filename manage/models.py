@@ -144,7 +144,7 @@ class Student(models.Model):
         ret = []
         reports = self.report_set.filter((Q(activity__time__year = year) & Q(activity__time__month__gte = month)) | Q(activity__time__year__gt = year))
         for item in reports:
-            ret += [(item.activity.time.strftime("%Y-%m-%d %H:%M"), item.activity.name, item.get_status_display() if item.activity.activity_type == 'class' else item.get_level_display(), item.activity.activity_type == 'class')]
+            ret += [(item.activity.time.strftime("%Y-%m-%d %H:%M"), item.activity.name, item.get_status_display() if item.activity.activity_type == 'class' else (item.get_level_display() + ' | ' + item.get_discipline_display()), item.activity.activity_type == 'class')]
 
         return ret
 
@@ -189,10 +189,18 @@ class Report(models.Model):
         ('high', '校级'),
     )
 
+    enum_discipline_level = (
+        ('none', '正常'),
+        ('low', '轻度违纪'),
+        ('mid', '中度违纪'),
+        ('high', '严重违纪'),
+    )
+
     activity = models.ForeignKey(Activity, models.CASCADE)
     student = models.ForeignKey(Student, models.CASCADE)
     status = models.CharField('考勤状态', choices = enum_student_status, max_length = 20, default = 'present')
     level = models.CharField('参与情况', choices = enum_activity_level, max_length = 20, default = 'none')
+    discipline = models.CharField('违纪情况', choices = enum_discipline_level, max_length = 20, default = 'none')
 
 class SummaryCount(models.Model):
     student = models.ForeignKey(Student, models.CASCADE)
@@ -204,15 +212,21 @@ class SummaryCount(models.Model):
     low_count = models.IntegerField("一般活动次数", default = 0)
     mid_count = models.IntegerField("中级活动次数", default = 0)
     high_count = models.IntegerField("重要活动次数", default = 0)
+    discipline_low_count = models.IntegerField("轻度违纪次数", default = 0)
+    discipline_mid_count = models.IntegerField("中度违纪次数", default = 0)
+    discipline_high_count = models.IntegerField("严重违纪次数", default = 0)
 
     def score(self):
         total = 60 \
-            + self.absent_count      * (-2) \
-            + self.late_count        * (-1) \
-            + self.leave_count       * ( 0) \
-            + self.low_count         * ( 1) \
-            + self.mid_count         * ( 3) \
-            + self.high_count        * ( 5)
+            + self.absent_count                 * (-2) \
+            + self.late_count                   * (-1) \
+            + self.leave_count                  * ( 0) \
+            + self.low_count                    * ( 1) \
+            + self.mid_count                    * ( 3) \
+            + self.high_count                   * ( 5) \
+            + self.discipline_low_count         * (-3) \
+            + self.discipline_mid_count         * (-5) \
+            + self.discipline_high_count        * (-8)
 
         return 0 if total < 0 else total
 
@@ -237,6 +251,9 @@ def count_summary_with_instance(instance):
     sc.low_count = reports.filter(level = "low").count()
     sc.mid_count = reports.filter(level = "mid").count()
     sc.high_count = reports.filter(level = "high").count()
+    sc.discipline_low_count = reports.filter(discipline = "low").count()
+    sc.discipline_mid_count = reports.filter(discipline = "mid").count()
+    sc.discipline_high_count = reports.filter(discipline = "high").count()
 
     sc.save()
 
