@@ -28,4 +28,4 @@ with open("./db-class-rm.data", "r") as f:
             i.delete()
 
         # remove classes
-        c.delete()
+        inclass.delete()

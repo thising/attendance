@@ -1,7 +1,7 @@
 from django.db import models
 from manage.models import *
 
-with open("./delete.data", "r") as f:
+with open("./db-delete.data", "r") as f:
     buf = f.read()
     students = buf.split("\n")
     for s in students:

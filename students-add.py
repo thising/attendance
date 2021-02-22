@@ -3,7 +3,7 @@
 from django.db import models
 from manage.models import *
 
-with open("./students.data", "r") as f:
+with open("./db-students-add.data", "r") as f:
     # data format:
     # class|number|name|sex
     buf = f.read()
