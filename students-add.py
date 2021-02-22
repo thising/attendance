@@ -3,6 +3,9 @@
 from django.db import models
 from manage.models import *
 
+# username = "karen"
+username = "liushaopeng"
+
 with open("./db-students-add.data", "r") as f:
     # data format:
     # class|number|name|sex
@@ -21,7 +24,7 @@ with open("./db-students-add.data", "r") as f:
                 inclass = None
             
             if inclass is None:
-                inclass = Class(classname = classname, managecode = "", owner = User.objects.get(username = "karen"))
+                inclass = Class(classname = classname, managecode = "", owner = User.objects.get(username = username))
 
             if inclass:
                 inclass.save()

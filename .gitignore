@@ -5,3 +5,5 @@ manage/migrations/*
 *.db
 *.ini
 *.conf
+attendance/settings.py
+.DS_Store
