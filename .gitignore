@@ -7,3 +7,5 @@ manage/migrations/*
 *.conf
 attendance/settings.py
 .DS_Store
+*.log
+__pycache__
