@@ -9,3 +9,4 @@ attendance/settings.py
 .DS_Store
 *.log
 __pycache__
+*.pid
