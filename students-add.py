@@ -3,8 +3,9 @@
 from django.db import models
 from manage.models import *
 
-username = "karen"
+# username = "karen"
 # username = "liushaopeng"
+username = "sunning"
 
 with open("./db-students-add.data", "r") as f:
     # data format:
