@@ -19,11 +19,29 @@
                         <label for="updateManagecode" class="sr-only">Update manage code</label>
                         <input type="text" id="updateManagecode" class="form-control text-center" name="managecode" value="{{ class.managecode }}" placeholder="请输入管理密码" required>
                         <p></p>
-                        <button class="btn btn-primary btn-block" type="submit">修改密码</button>
+                        <button class="btn btn-sm btn-primary btn-block" type="submit">修改密码</button>
                     </div>
                 </form>
-                {% endif %}
             </li>
+            <li class="list-group-item">
+                <form role="form" action="history_clear.html" method="post">
+                    <div class="form-group">
+                        {% csrf_token %}
+                        {% include "block_input_class_code.html" %}
+                        <input id="classcode" name="classcode" type="hidden" value="{{ class.sharecode }}">
+                        <button class="btn btn-sm btn-danger btn-block" type="submit">清空历史记录</button>
+                    </div>
+                </form>
+                <form role="form" action="class_remove.html" method="post">
+                    <div class="form-group">
+                        {% csrf_token %}
+                        {% include "block_input_class_code.html" %}
+                        <input id="classcode" name="classcode" type="hidden" value="{{ class.sharecode }}">
+                        <button class="btn btn-sm btn-danger btn-block" type="submit">删除班级</button>
+                    </div>
+                </form>
+            </li>
+            {% endif %}
             <li class="list-group-item">
                 <form role="form" action="create_activity.html" method="post">
                     <div class="form-group">
@@ -38,7 +56,7 @@
                         {% endif %}
                         {% endif %}
                         <p></p>
-                        <button class="btn btn-danger btn-block" type="submit">新增记录</button>
+                        <button class="btn btn-sm btn-warning btn-block" type="submit">新增记录</button>
                     </div>
                 </form>
             </li>
