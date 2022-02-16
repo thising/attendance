@@ -94,6 +94,16 @@ def student_term_reports(request):
             return render(request, "student_term_reports.html", {"name": student.name, "reports" : student.report_term()})
     return render(request, "student_term_reports.html", {"name": "数据错误", "reports" : [("数据查询失败", "数据查询失败", "数据查询失败")]})
 
+def student_last_term_reports(request):
+    is_owner = False
+    sid = request.GET.get("student", "")
+    student = Student.objects.get(id = sid)
+    if student is not None:
+        if request.user.is_authenticated and student.inclass.owner == request.user:
+            is_owner = True
+            return render(request, "student_term_reports.html", {"name": student.name, "reports" : student.report_term_last()})
+    return render(request, "student_term_reports.html", {"name": "数据错误", "reports" : [("数据查询失败", "数据查询失败", "数据查询失败")]})
+
 def update_class(request):
     if request.user.is_authenticated:
         classcode = request.POST.get("classcode", "")
@@ -323,3 +333,87 @@ def release_activity(request):
                 "students": to_show,
                 "message": "保存失败",
             })
+
+def clear_history(request):
+    classcode = request.POST.get("classcode", "")
+    current_class = Class.objects.get(sharecode = classcode)
+    if current_class is not None:
+        if request.user.is_authenticated and current_class.owner == request.user:
+            students = Student.objects.filter(inclass = current_class)
+            for s in students:
+                # remove reports
+                records = Report.objects.filter(student = s)
+                for i in records:
+                    i.delete()
+
+                #remove summary count
+                records = SummaryCount.objects.filter(student = s)
+                for i in records:
+                    i.delete()
+
+                # remove students
+                # s.delete()
+
+            # remove activities
+            records = Activity.objects.filter(inclass = current_class)
+            for i in records:
+                i.delete()
+
+    return redirect("class.html?classcode=%s" % classcode)
+
+def remove_class(request):
+    classcode = request.POST.get("classcode", "")
+    current_class = Class.objects.get(sharecode = classcode)
+    if current_class is not None:
+        if request.user.is_authenticated and current_class.owner == request.user:
+            students = Student.objects.filter(inclass = current_class)
+            for s in students:
+                # remove reports
+                records = Report.objects.filter(student = s)
+                for i in records:
+                    i.delete()
+
+                #remove summary count
+                records = SummaryCount.objects.filter(student = s)
+                for i in records:
+                    i.delete()
+
+                # remove students
+                s.delete()
+
+            # remove activities
+            records = Activity.objects.filter(inclass = current_class)
+            for i in records:
+                i.delete()
+
+            # remove classes
+            current_class.delete()
+
+    return redirect("index.html")
+
+def add_class(request):
+    classname = request.POST.get("classname", "")
+    try:
+        inclass = Class.objects.get(classname = classname)
+    except Exception as e:
+        inclass = None
+    
+    if inclass is None:
+        if request.user.is_authenticated:
+            inclass = Class(classname = classname, managecode = "", owner = request.user)
+
+            if inclass:
+                inclass.save()
+
+    return redirect("index.html")
+
+def last_term_summary(request):
+    class_list = None
+    if request.user.is_authenticated:
+        summary_tm = []
+        class_list = Class.objects.filter(owner = request.user)
+        for item in class_list:
+            summary_tm += [{"class" : item.id, "summary" : [s.summary_term_last() for s in item.student_set.all()]}]
+        return render(request, 'summary-last-term.html', {"summary_tm":summary_tm})
+
+    return render(request, 'summary-last-term.html')

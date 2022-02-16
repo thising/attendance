@@ -1,6 +1,6 @@
 {% if request.user.is_authenticated %}
     <div class="page-header">
-        <h2>班级列表({{ class_count }})</h2>
+        <h2>班级列表({{ class_count }}) <a id="class-add" href="#">➕</a></h2>
     </div>
         {% for slices in class_list %}
             <div class="row">
@@ -24,7 +24,7 @@
             </div>
         {% endfor %}
     <div class="page-header">
-        <h2>学期汇总</h2>
+        <h2>学期汇总 <small><a href="summary-last-term.html" target="_blank">👉上学期数据从此处进</a></small></h2><h6></h6>
     </div>
 
     {% if summary_tm|length > 0 %}

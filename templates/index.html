@@ -69,6 +69,24 @@
     $('.student-term-report-modal').on('click', function(e){
       e.preventDefault();
       $('#student_term_reports').modal('show').load($(this).attr('href'));
-  });
+    });
+    
+    $('#class-add').click(function(e) {
+        e.preventDefault();
+        bootbox.prompt("请输入新班级的名称:", function(result) {
+            if (result) {
+                data = {
+                    'csrfmiddlewaretoken': '{{ csrf_token }}',
+                    'classname': result
+                };
+                $.post(
+                    "class_add.html",
+                    data,
+                    function(r) {
+                        location.reload()
+                });
+            }
+        });
+    });
 </script> 
 {% endblock %}

@@ -24,7 +24,7 @@
                 </form>
             </li>
             <li class="list-group-item">
-                <form role="form" action="history_clear.html" method="post">
+                <form id="history-clear" role="form" action="history_clear.html" method="post">
                     <div class="form-group">
                         {% csrf_token %}
                         {% include "block_input_class_code.html" %}
@@ -32,7 +32,7 @@
                         <button class="btn btn-sm btn-danger btn-block" type="submit">清空历史记录</button>
                     </div>
                 </form>
-                <form role="form" action="class_remove.html" method="post">
+                <form id="class-remove" role="form" action="class_remove.html" method="post">
                     <div class="form-group">
                         {% csrf_token %}
                         {% include "block_input_class_code.html" %}
@@ -200,4 +200,27 @@
     </div>
 {% endif %}
 </div>
+{% endblock %}
+
+{% block BLOCK_CUSTOM_JS %}
+<script type="text/javascript">
+    $('#history-clear').submit(function(e) {
+        var currentForm = this;
+        e.preventDefault();
+        bootbox.prompt("历史记录清除后不可恢复，请慎重操作！<br />输入 yes 并确认:", function(result) {
+            if (result == 'yes') {
+                currentForm.submit();
+            }
+        });
+    });
+    $('#class-remove').submit(function(e) {
+        var currentForm = this;
+        e.preventDefault();
+        bootbox.prompt("班级删除后，该班数据将会一起清除，并不可恢复，请慎重操作！<br />输入 yes 并确认:", function(result) {
+            if (result == 'yes') {
+                currentForm.submit();
+            }
+        });
+    });
+</script>
 {% endblock %}

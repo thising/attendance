@@ -74,6 +74,25 @@ class Student(models.Model):
         # return self.summary_total_avg(2021, 2)
         return self.summary_total_avg(year, month)
 
+    def summary_term_last(self):
+        today = datetime.now()
+        starty = endy = year = today.year
+        startm = endm = month = today.month
+        if month >= 2 and month < 9:
+            starty -= 1
+            startm = 9
+            endy = year
+            endm = 1
+        elif month >= 9:
+            starty = endy = year
+            startm = 2
+            endm = 8
+        else:
+            starty = endy = year - 1
+            startm = 2
+            endm = 8
+        return self.summary_total_avg_stage(starty, startm, endy, endm)
+
     def report_term(self):
         today = datetime.now()
         year = today.year
@@ -85,9 +104,27 @@ class Student(models.Model):
         else:
             year -= 1
 
-        # return self.report_detail(2021, 2)
         return self.report_detail(year, month)
 
+    def report_term_last(self):
+        today = datetime.now()
+        starty = endy = year = today.year
+        startm = endm = month = today.month
+        if month >= 2 and month < 9:
+            starty -= 1
+            startm = 9
+            endy = year
+            endm = 1
+        elif month >= 9:
+            starty = endy = year
+            startm = 2
+            endm = 8
+        else:
+            starty = endy = year - 1
+            startm = 2
+            endm = 8
+
+        return self.report_detail_stage(starty, startm, endy, endm)
 
     def summary_month(self, year, month):
         try:
@@ -141,9 +178,59 @@ class Student(models.Model):
                 self.id
             )
 
+    def summary_total_avg_stage(self, start_year, start_month, end_year, end_month):
+        scs = None
+        if end_month > start_month:
+            scs = self.summarycount_set.filter(Q(year = start_year) & Q(month__gte = start_month) & Q(month__lte = end_month))
+        else:
+            scs = self.summarycount_set.filter((Q(year = start_year) & Q(month__gte = start_month)) | (Q(year = end_year) & Q(month__lte = end_month)))
+        absent = 0
+        late = 0
+        leave = 0
+        low = 0
+        mid = 0
+        high = 0
+        score = 0
+        for sc in scs:
+            absent += sc.absent_count
+            late += sc.late_count
+            leave += sc.leave_count
+            low += sc.low_count
+            mid += sc.mid_count
+            high += sc.high_count
+            score += sc.score()
+        score = 0 if scs.count() == 0 else (score / scs.count() * 1.0)
+
+        return (
+                self.number, 
+                self.name, 
+                self.get_sex_display(),
+                absent, 
+                late, 
+                leave, 
+                low, 
+                mid, 
+                high, 
+                score,
+                absent + late + leave + low + mid + high > 0,
+                self.id
+            )
+
     def report_detail(self, year, month):
         ret = []
         reports = self.report_set.filter((Q(activity__time__year = year) & Q(activity__time__month__gte = month)) | Q(activity__time__year__gt = year))
+        for item in reports:
+            ret += [(item.activity.time.strftime("%Y-%m-%d %H:%M"), item.activity.name, item.get_status_display() if item.activity.activity_type == 'class' else (item.get_level_display() + ' | ' + item.get_discipline_display()), item.activity.activity_type == 'class')]
+
+        return ret
+
+    def report_detail_stage(self, start_year, start_month, end_year, end_month):
+        ret = []
+        reports = None
+        if end_month > start_month:
+            reports = self.report_set.filter((Q(activity__time__year = start_year) & Q(activity__time__month__gte = start_month)) & Q(activity__time__month__lte = end_month))
+        else:
+            reports = self.report_set.filter((Q(activity__time__year = start_year) & Q(activity__time__month__gte = start_month)) | (Q(activity__time__year = end_year) & Q(activity__time__month__lte = end_month)))
         for item in reports:
             ret += [(item.activity.time.strftime("%Y-%m-%d %H:%M"), item.activity.name, item.get_status_display() if item.activity.activity_type == 'class' else (item.get_level_display() + ' | ' + item.get_discipline_display()), item.activity.activity_type == 'class')]
 
