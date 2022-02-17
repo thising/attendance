@@ -417,3 +417,42 @@ def last_term_summary(request):
         return render(request, 'summary-last-term.html', {"summary_tm":summary_tm})
 
     return render(request, 'summary-last-term.html')
+
+def students(request):
+    is_owner = False
+    students = None
+    classcode = request.GET.get("classcode", "")
+    current_class = Class.objects.get(sharecode = classcode)
+    if current_class is not None:
+        if request.user.is_authenticated and current_class.owner == request.user:
+            is_owner = True
+            students = Student.objects.filter(inclass = current_class)
+
+        return render(request, "students.html", {
+                "class": current_class,
+                "is_owner": is_owner,
+                "students": students,
+            })    
+    else:
+        return redirect("index.html")
+
+def remove_students(request):
+    classcode = request.POST.get("classcode", "")
+    current_class = Class.objects.get(sharecode = classcode)
+    if current_class is not None:
+        if request.user.is_authenticated and current_class.owner == request.user:
+            students = current_class.student_set.all()
+            for student in students:
+                status = request.POST.get("sid_%d" % student.id, None)
+                if status:
+                    records = student.report_set.all()
+                    for i in records:
+                        i.delete()
+
+                    records = student.summarycount_set.all()
+                    for i in records:
+                        i.delete()
+                    
+                    student.delete()
+
+    return redirect("students.html?classcode=%s" % classcode)

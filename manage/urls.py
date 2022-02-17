@@ -23,6 +23,8 @@ urlpatterns = [
     url(r'^class_remove.html$', manage_views.remove_class, name='removeclass'), # 删除班级
     url(r'^class_add.html$', manage_views.add_class, name='addclass'), # 新建班级
     url(r'^summary-last-term.html$', manage_views.last_term_summary, name='lasttermsummary'), # 上学期汇总
+    url(r'^students.html$', manage_views.students, name='students'), # 学生管理
+    url(r'^students-remove.html$', manage_views.remove_students, name='removestudents'), # 学生删除
     
 ]
 
