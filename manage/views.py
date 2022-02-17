@@ -339,6 +339,7 @@ def clear_history(request):
     current_class = Class.objects.get(sharecode = classcode)
     if current_class is not None:
         if request.user.is_authenticated and current_class.owner == request.user:
+            print("用户 %s 开始在班级 %s 中清除历史" % (request.user.username, current_class.classname))
             students = Student.objects.filter(inclass = current_class)
             for s in students:
                 # remove reports
@@ -366,6 +367,7 @@ def remove_class(request):
     current_class = Class.objects.get(sharecode = classcode)
     if current_class is not None:
         if request.user.is_authenticated and current_class.owner == request.user:
+            print("用户 %s 开始删除班级 %s" % (request.user.username, current_class.classname))
             students = Student.objects.filter(inclass = current_class)
             for s in students:
                 # remove reports
@@ -403,6 +405,7 @@ def add_class(request):
             inclass = Class(classname = classname, managecode = "", owner = request.user)
 
             if inclass:
+                print("用户 %s 开始创建班级 %s" % (request.user.username, inclass.classname))
                 inclass.save()
 
     return redirect("index.html")
@@ -441,10 +444,12 @@ def remove_students(request):
     current_class = Class.objects.get(sharecode = classcode)
     if current_class is not None:
         if request.user.is_authenticated and current_class.owner == request.user:
+            print("用户 %s 开始在班级 %s 中删除学生：" % (request.user.username, current_class.classname))
             students = current_class.student_set.all()
             for student in students:
                 status = request.POST.get("sid_%d" % student.id, None)
                 if status:
+                    print("***Remove ", student)
                     records = student.report_set.all()
                     for i in records:
                         i.delete()
@@ -454,5 +459,41 @@ def remove_students(request):
                         i.delete()
                     
                     student.delete()
+
+    return redirect("students.html?classcode=%s" % classcode)
+
+def add_students(request):
+    classcode = request.POST.get("classcode", "")
+    current_class = Class.objects.get(sharecode = classcode)
+    if current_class is not None:
+        if request.user.is_authenticated and current_class.owner == request.user:
+            print("用户 %s 开始在班级 %s 中添加学生：" % (request.user.username, current_class.classname))
+            buf = request.POST.get("students-text", "")
+            records = buf.split("\n")
+            for i in records:
+                cols = i.strip().split("|")
+                if len(cols) >= 3:
+                    number = cols[0].strip()
+                    name = cols[1].strip()
+                    sex = 'male' if cols[2].strip() == "男" else 'female'
+                    
+                    try:
+                        stu = Student.objects.get(inclass = current_class, number = number)
+                    except Exception as e:
+                        stu = None
+                    
+                    if stu is None:
+                        try:
+                            stu = Student(inclass = current_class, number = number, name = name, sex = sex)
+                            stu.save()
+                            print("创建成功:", number, name)
+                        except Exception as e:
+                            print(e)
+                        else:
+                            pass
+                        finally:
+                            pass
+                    else:
+                        print("***重复学生:", number, name)
 
     return redirect("students.html?classcode=%s" % classcode)

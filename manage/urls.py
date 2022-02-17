@@ -25,6 +25,7 @@ urlpatterns = [
     url(r'^summary-last-term.html$', manage_views.last_term_summary, name='lasttermsummary'), # 上学期汇总
     url(r'^students.html$', manage_views.students, name='students'), # 学生管理
     url(r'^students-remove.html$', manage_views.remove_students, name='removestudents'), # 学生删除
+    url(r'^students-add.html$', manage_views.add_students, name='addstudents'), # 学生添加
     
 ]
 

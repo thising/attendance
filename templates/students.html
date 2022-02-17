@@ -41,23 +41,21 @@
     <h2>新增学生</h2>
 </div>
 <div class="row">
-    <div class="col-sm-6">
-        <table class="table table-striped table-bordered table-condensed">
-            <tr id="validate-title">
-                <th>学号</th>
-                <th>姓名</th>
-                <th>性别</th>
-            </tr>
+    <div class="col-sm-6 text-center">
+        <table id="validate-table" class="table table-striped table-bordered table-condensed">
         </table>
+        <p id="validate-message" class="text-center text-danger">待添加数据为空</p>
     </div>
     <div class="col-sm-6">
         <form id="students-add" class="text-center" role="form" action="students-add.html" method="post">
             {% csrf_token %}
             <input id="classcode" name="classcode" type="hidden" value="{{ class.sharecode }}">
-            <textarea id="students-text" placeholder="学号|姓名|性别" class="form-control" rows="10" name="textarea" onchange="validate()"></textarea>
-            <small>⚠️请按照"学号|姓名|性别"的格式，每行一个学生信息，进行填写。<a href="#">下载Excel模板帮助导入信息</a></small>
+            <textarea id="students-text" placeholder="学号|姓名|性别" class="form-control" rows="20" name="students-text"></textarea>
+            {% load static %}
+            <small>⚠️请按照"学号|姓名|性别"的格式，每行一个学生信息，进行填写。<a href="{% static "ams-template-add-students.xlsx" %}">下载Excel模板帮助导入信息</a></small>
             <br />
-            <button class="btn btn-danger btn-block" type="submit">提交名单</button>
+            <a class="btn btn-primary btn-block" href="#" onclick="validate()">验证数据</a>
+            <button id="btn-add-students" class="btn btn-danger btn-block" type="submit" disabled>提交名单</button>
         </form>
     </div>
 </div>
@@ -98,17 +96,70 @@
         });
     };
 
+
+    $('#students-add').submit(function(e) {
+        var currentForm = this;
+        e.preventDefault();
+
+        var count = validate();
+
+        bootbox.prompt("您即将添加 " + count + " 名学生" + "<br />输入 yes 并确认:", function(result) {
+            if (result == 'yes') {
+                currentForm.submit();
+            }
+        });
+    });
+
     function validate() {
+        $('#validate-table').empty();
+
         text = $('#students-text').val();
-        console.log(text);
-        var student = text.split("|");
-        $('#validate-title').after(
-            '<tr>' +
-                '<td>' + student[0] + '</td>' + 
-                '<td>' + student[1] + '</td>' + 
-                '<td>' + student[2] + '</td>' + 
-            '</tr>'
-        );
+        text = $.trim(text);
+        $('#students-text').val(text);
+
+        var lines = text.split("\n");
+
+        var count = 0;
+        if (lines.length > 0) {
+            $('#validate-table').append(
+                '<tr>' +
+                    '<td>序号</td>' + 
+                    '<td>学号</td>' + 
+                    '<td>姓名</td>' + 
+                    '<td>性别</td>' + 
+                '</tr>'
+            );
+        }
+
+        for (var i = 0; i < lines.length; i++) {
+            var line = $.trim(lines[i]);
+            if (line.length > 3 && line.substr(0, 1) != '#') {
+                var student = line.split("|");
+                if (student.length >= 3) {
+                    count += 1;
+                    $('#validate-table').append(
+                        '<tr>' +
+                            '<td>' + (count) + '</td>' + 
+                            '<td>' + $.trim(student[0]) + '</td>' + 
+                            '<td>' + $.trim(student[1]) + '</td>' + 
+                            '<td>' + $.trim(student[2]) + '</td>' + 
+                        '</tr>'
+                    );
+                }
+            }
+        }
+
+        if (count > 0) {
+            $("#btn-add-students").attr('disabled', false);
+            $('#validate-message').html('您将有以上 ' + count + ' 名学生被添加。');
+        } else {
+            $('#validate-table').empty();
+            $("#btn-add-students").attr('disabled', true);
+            $('#validate-message').html('未匹配到学生信息，请检查您输入的数据。');
+        }
+
+        return count;
     };
+
 </script>
 {% endblock %}
