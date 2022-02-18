@@ -488,7 +488,8 @@ def add_students(request):
                 if len(cols) >= 3:
                     number = cols[0].strip()
                     name = cols[1].strip()
-                    sex = 'male' if cols[2].strip() == "男" else 'female'
+                    sex = cols[2].strip()
+                    sex = 'male' if (sex == '男' or sex == 'male') else 'female'
                     
                     try:
                         stu = Student.objects.get(inclass = current_class, number = number)

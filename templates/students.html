@@ -50,11 +50,11 @@
         <form id="students-add" class="text-center" role="form" action="students-add.html" method="post">
             {% csrf_token %}
             <input id="classcode" name="classcode" type="hidden" value="{{ class.sharecode }}">
-            <textarea id="students-text" placeholder="学号|姓名|性别" class="form-control" rows="20" name="students-text"></textarea>
+            <textarea id="students-text" placeholder="学号|姓名|性别" class="form-control" rows="20" name="students-text" maxlength="5000"></textarea>
             {% load static %}
-            <small>⚠️请按照"学号|姓名|性别"的格式，每行一个学生信息，进行填写。<a href="{% static "downloads/ams-template-add-students.xlsx" %}">下载Excel模板帮助导入信息</a></small>
+            <small>⚠️请按照 <big class="text-center text-danger">"学号|姓名|性别"</big> 的格式，每行一个学生信息，进行填写。<a href='{% static "downloads/ams-template-add-students.xlsx" %}'>下载Excel模板帮助导入信息</a></small>
             <br />
-            <a class="btn btn-primary btn-block" href="#" onclick="validate()">验证数据</a>
+            <a class="btn btn-primary btn-block" href="#students-add" onclick="validate()">验证数据</a>
             <button id="btn-add-students" class="btn btn-danger btn-block" type="submit" disabled>提交名单</button>
         </form>
     </div>
@@ -102,12 +102,13 @@
         e.preventDefault();
 
         var count = validate();
-
-        bootbox.prompt("您即将添加 " + count + " 名学生" + "<br />输入 yes 并确认:", function(result) {
-            if (result == 'yes') {
-                currentForm.submit();
-            }
-        });
+        if (count > 0) {
+            bootbox.prompt("您即将添加 " + count + " 名学生" + "<br />输入 yes 并确认:", function(result) {
+                if (result == 'yes') {
+                    currentForm.submit();
+                }
+            });
+        }
     });
 
     function validate() {
@@ -137,12 +138,14 @@
                 var student = line.split("|");
                 if (student.length >= 3) {
                     count += 1;
+                    var sex = $.trim(student[2]);
+                    sex = (sex == '男' || sex == 'male') ? '男' : '女';
                     $('#validate-table').append(
                         '<tr>' +
                             '<td>' + (count) + '</td>' + 
                             '<td>' + $.trim(student[0]) + '</td>' + 
                             '<td>' + $.trim(student[1]) + '</td>' + 
-                            '<td>' + $.trim(student[2]) + '</td>' + 
+                            '<td>' + sex + '</td>' + 
                         '</tr>'
                     );
                 }
