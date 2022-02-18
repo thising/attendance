@@ -8,6 +8,12 @@ from django.http import HttpResponse
 from datetime import datetime
 from manage.models import *
 
+# import the logging library
+import logging
+
+# Get an instance of a logger
+logger = logging.getLogger(__name__)
+
 # Create your views here.
 
 def index(request):
@@ -36,8 +42,10 @@ def user_login(request):
         user = authenticate(username = username, password = password)
         if user is not None:
             login(request, user)
+            logger.info("用户 <%r> 登录成功", username)
             return redirect("index.html")
         else:
+            logger.info("用户 <%r> 登录失败", username)
             return render(request, "login.html", {"message": "用户名或密码错误"})
     else:
         return render(request, "login.html")
@@ -56,7 +64,7 @@ def class_info(request):
     current_class = Class.objects.get(sharecode = classcode)
     if current_class is not None:
         today = datetime.now()
-
+        logger.info("用户 <%r> 访问班级 <%r>", request.user.username, current_class)
         if request.user.is_authenticated and current_class.owner == request.user:
             is_owner = True
             # activities = Activity.objects.filter(inclass = current_class, status = "preview")
@@ -110,6 +118,7 @@ def update_class(request):
         managecode = request.POST.get("managecode", "")
         current_class = Class.objects.get(sharecode = classcode)
         if current_class is not None and current_class.owner == request.user:
+            logger.info("用户 <%r> 更改班级 <%r> 的管理密码", request.user.username, current_class)
             current_class.managecode = managecode
             current_class.save()
 
@@ -130,6 +139,8 @@ def create_activity(request):
     return redirect("class.html?classcode=%s" % classcode)
 
 def save_activity(request):
+    # TODO: 2022-02-18 Kyle
+    # 短时间多次提交的重复判断
     classcode = request.POST.get("classcode", "")
     current_class = Class.objects.get(sharecode = classcode)
     if current_class is not None:
@@ -139,6 +150,7 @@ def save_activity(request):
                 name = request.POST.get("name", ""),
                 inclass = current_class
             )
+        logger.info("用户 <%r> 为班级 <%r> 创建活动 <%r>", request.user.username, current_class.classname, activity.name)
         activity.save()
         # students = Student.objects.filter(inclass = current_class)
         students = current_class.student_set.all()
@@ -236,6 +248,7 @@ def release_activity(request):
     activity = Activity.objects.get(id = aid)
 
     if is_owner or managecode == current_class.managecode:
+        logger.info("用户 <%r> 为班级 <%r> 修改活动 <%r>", request.user.username, current_class.classname, activity.name)
         if current_class is not None and activity is not None:
             activity.name = request.POST.get("name", "")
             if is_owner:
@@ -339,7 +352,7 @@ def clear_history(request):
     current_class = Class.objects.get(sharecode = classcode)
     if current_class is not None:
         if request.user.is_authenticated and current_class.owner == request.user:
-            print("用户 %s 开始在班级 %s 中清除历史" % (request.user.username, current_class.classname))
+            logger.info("用户 <%r> 开始在班级 <%r> 中清除历史!!!", request.user.username, current_class.classname)
             students = Student.objects.filter(inclass = current_class)
             for s in students:
                 # remove reports
@@ -367,7 +380,7 @@ def remove_class(request):
     current_class = Class.objects.get(sharecode = classcode)
     if current_class is not None:
         if request.user.is_authenticated and current_class.owner == request.user:
-            print("用户 %s 开始删除班级 %s" % (request.user.username, current_class.classname))
+            logger.info("用户 <%r> 开始删除班级 <%r> !!!", request.user.username, current_class.classname)
             students = Student.objects.filter(inclass = current_class)
             for s in students:
                 # remove reports
@@ -405,7 +418,7 @@ def add_class(request):
             inclass = Class(classname = classname, managecode = "", owner = request.user)
 
             if inclass:
-                print("用户 %s 开始创建班级 %s" % (request.user.username, inclass.classname))
+                logger.info("用户 <%r> 开始创建班级 <%r> !!!", request.user.username, inclass.classname)
                 inclass.save()
 
     return redirect("index.html")
@@ -444,12 +457,12 @@ def remove_students(request):
     current_class = Class.objects.get(sharecode = classcode)
     if current_class is not None:
         if request.user.is_authenticated and current_class.owner == request.user:
-            print("用户 %s 开始在班级 %s 中删除学生：" % (request.user.username, current_class.classname))
+            logger.info("用户 <%r> 开始在班级 <%r> 中删除学生:", request.user.username, current_class.classname)
             students = current_class.student_set.all()
             for student in students:
                 status = request.POST.get("sid_%d" % student.id, None)
                 if status:
-                    print("***Remove ", student)
+                    logger.info("--> Remove %r", student)
                     records = student.report_set.all()
                     for i in records:
                         i.delete()
@@ -467,7 +480,7 @@ def add_students(request):
     current_class = Class.objects.get(sharecode = classcode)
     if current_class is not None:
         if request.user.is_authenticated and current_class.owner == request.user:
-            print("用户 %s 开始在班级 %s 中添加学生：" % (request.user.username, current_class.classname))
+            logger.info("用户 <%r> 开始在班级 <%r> 中添加学生:", request.user.username, current_class.classname)
             buf = request.POST.get("students-text", "")
             records = buf.split("\n")
             for i in records:
@@ -486,14 +499,14 @@ def add_students(request):
                         try:
                             stu = Student(inclass = current_class, number = number, name = name, sex = sex)
                             stu.save()
-                            print("创建成功:", number, name)
+                            logger.info("--> Added: %r, %r", number, name)
                         except Exception as e:
-                            print(e)
+                            logger.error(e)
                         else:
                             pass
                         finally:
                             pass
                     else:
-                        print("***重复学生:", number, name)
+                        logger.info("xxx Ignore duplicated: %r, %r", number, name)
 
     return redirect("students.html?classcode=%s" % classcode)

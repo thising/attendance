@@ -52,7 +52,7 @@
             <input id="classcode" name="classcode" type="hidden" value="{{ class.sharecode }}">
             <textarea id="students-text" placeholder="学号|姓名|性别" class="form-control" rows="20" name="students-text"></textarea>
             {% load static %}
-            <small>⚠️请按照"学号|姓名|性别"的格式，每行一个学生信息，进行填写。<a href="{% static "ams-template-add-students.xlsx" %}">下载Excel模板帮助导入信息</a></small>
+            <small>⚠️请按照"学号|姓名|性别"的格式，每行一个学生信息，进行填写。<a href="{% static "downloads/ams-template-add-students.xlsx" %}">下载Excel模板帮助导入信息</a></small>
             <br />
             <a class="btn btn-primary btn-block" href="#" onclick="validate()">验证数据</a>
             <button id="btn-add-students" class="btn btn-danger btn-block" type="submit" disabled>提交名单</button>
