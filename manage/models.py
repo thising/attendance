@@ -139,6 +139,9 @@ class Student(models.Model):
                     sc.low_count, 
                     sc.mid_count, 
                     sc.high_count, 
+                    sc.discipline_low_count,
+                    sc.discipline_mid_count,
+                    sc.discipline_high_count,
                     sc.score()
                 )
         except Exception as e:
@@ -153,6 +156,9 @@ class Student(models.Model):
         mid = 0
         high = 0
         score = 0
+        dlow = 0
+        dmid = 0
+        dhigh = 0
         for sc in scs:
             absent += sc.absent_count
             late += sc.late_count
@@ -160,6 +166,9 @@ class Student(models.Model):
             low += sc.low_count
             mid += sc.mid_count
             high += sc.high_count
+            dlow += sc.discipline_low_count
+            dmid += sc.discipline_mid_count
+            dhigh += sc.discipline_high_count
             score += sc.score()
         score = 0 if scs.count() == 0 else (score / scs.count() * 1.0)
 
@@ -173,8 +182,11 @@ class Student(models.Model):
                 low, 
                 mid, 
                 high, 
+                dlow,
+                dmid,
+                dhigh,
                 score,
-                absent + late + leave + low + mid + high > 0,
+                absent + late + leave + low + mid + high + dlow + dmid + dhigh > 0,
                 self.id
             )
 
@@ -191,6 +203,9 @@ class Student(models.Model):
         mid = 0
         high = 0
         score = 0
+        dlow = 0
+        dmid = 0
+        dhigh = 0
         for sc in scs:
             absent += sc.absent_count
             late += sc.late_count
@@ -198,6 +213,9 @@ class Student(models.Model):
             low += sc.low_count
             mid += sc.mid_count
             high += sc.high_count
+            dlow += sc.discipline_low_count
+            dmid += sc.discipline_mid_count
+            dhigh += sc.discipline_high_count
             score += sc.score()
         score = 0 if scs.count() == 0 else (score / scs.count() * 1.0)
 
@@ -211,8 +229,11 @@ class Student(models.Model):
                 low, 
                 mid, 
                 high, 
+                dlow,
+                dmid,
+                dhigh,
                 score,
-                absent + late + leave + low + mid + high > 0,
+                absent + late + leave + low + mid + high + dlow + dmid + dhigh > 0,
                 self.id
             )
 
@@ -220,7 +241,15 @@ class Student(models.Model):
         ret = []
         reports = self.report_set.filter((Q(activity__time__year = year) & Q(activity__time__month__gte = month)) | Q(activity__time__year__gt = year))
         for item in reports:
-            ret += [(item.activity.time.strftime("%Y-%m-%d %H:%M"), item.activity.name, item.get_status_display() if item.activity.activity_type == 'class' else (item.get_level_display() + ' | ' + item.get_discipline_display()), item.activity.activity_type == 'class')]
+            desc = ''
+            if item.activity.activity_type == 'activity':
+                desc = item.get_level_display()
+            elif item.activity.activity_type == 'discipline':
+                desc = item.get_discipline_display()
+            else:
+                desc = item.get_status_display()
+
+            ret += [(item.activity.time.strftime("%Y-%m-%d %H:%M"), item.activity.name, desc, item.activity.activity_type)]
 
         return ret
 
@@ -232,7 +261,15 @@ class Student(models.Model):
         else:
             reports = self.report_set.filter((Q(activity__time__year = start_year) & Q(activity__time__month__gte = start_month)) | (Q(activity__time__year = end_year) & Q(activity__time__month__lte = end_month)))
         for item in reports:
-            ret += [(item.activity.time.strftime("%Y-%m-%d %H:%M"), item.activity.name, item.get_status_display() if item.activity.activity_type == 'class' else (item.get_level_display() + ' | ' + item.get_discipline_display()), item.activity.activity_type == 'class')]
+            desc = ''
+            if item.activity.activity_type == 'activity':
+                desc = item.get_level_display()
+            elif item.activity.activity_type == 'discipline':
+                desc = item.get_discipline_display()
+            else:
+                desc = item.get_status_display()
+
+            ret += [(item.activity.time.strftime("%Y-%m-%d %H:%M"), item.activity.name, desc, item.activity.activity_type)]
 
         return ret
 
@@ -243,6 +280,7 @@ class Activity(models.Model):
     enum_activity_type = (
         ('class', '考勤'),
         ('activity', '活动'),
+        ('discipline', '违纪'),
     )
 
     enum_status_type = (
@@ -312,9 +350,9 @@ class SummaryCount(models.Model):
             + self.low_count                    * ( 1) \
             + self.mid_count                    * ( 3) \
             + self.high_count                   * ( 5) \
-            + self.discipline_low_count         * (-3) \
-            + self.discipline_mid_count         * (-5) \
-            + self.discipline_high_count        * (-8)
+            + self.discipline_low_count         * (-5) \
+            + self.discipline_mid_count         * (-8) \
+            + self.discipline_high_count        * (-12)
 
         return 0 if total < 0 else total
 

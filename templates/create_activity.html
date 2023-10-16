@@ -19,6 +19,9 @@
         <label class="btn btn-default">
             <input id="activityradio" type="radio" name="type" value="activity" required> 活动
         </label>
+        <label class="btn btn-default">
+            <input id="disciplineradio" type="radio" name="type" value="discipline" required> 违纪
+        </label>
     </div>
     <p></p>
     <div id="classtypelist" class="table-responsive text-center">
@@ -39,7 +42,7 @@
     </div>
     <div id="activitytypelist" class="table-responsive text-center">
         <table class="table table-striped table-bordered table-condensed">
-            <tr><th>学号</th><th>姓名</th><!--th>性别</th--><th colspan="4">活动级别</th><th colspan="4">违纪情况</th></tr>
+            <tr><th>学号</th><th>姓名</th><!--th>性别</th--><th colspan="4">活动级别</th></tr>
             {% for student in students %}
             <tr rowspan="2">
                 <td>{{ student.number }}</td>
@@ -49,6 +52,17 @@
                 <td><input type="radio" name="said_{{ student.id }}" value="low"> 班级</td>
                 <td><input type="radio" name="said_{{ student.id }}" value="mid"> 院级</td>
                 <td><input type="radio" name="said_{{ student.id }}" value="high"> 校级</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    <div id="disciplinetypelist" class="table-responsive text-center">
+        <table class="table table-striped table-bordered table-condensed">
+            <tr><th>学号</th><th>姓名</th><th colspan="4">违纪情况</th></tr>
+            {% for student in students %}
+            <tr rowspan="2">
+                <td>{{ student.number }}</td>
+                <td>{{ student.name }}</td>
                 <td><input type="radio" name="sdid_{{ student.id }}" value="none" checked> 正常</td>
                 <td><input type="radio" name="sdid_{{ student.id }}" value="low"> 轻度违纪</td>
                 <td><input type="radio" name="sdid_{{ student.id }}" value="mid"> 中度违纪</td>
@@ -69,19 +83,27 @@
     });
 
     $("#typeradios :input").change(function() {
+        $("#classtypelist").hide();
+        $("#activitytypelist").hide();
+        $("#disciplinetypelist").hide();
+        $("#classtypelist :input").attr("disabled", true);
+        $("#activitytypelist :input").attr("disabled", true);
+        $("#disciplinetypelist :input").attr("disabled", true);
+
         if ($(this).val() == "class")
         {
             $("#classtypelist").show();
-            $("#activitytypelist").hide();
             $("#classtypelist :input").attr("disabled", false);
-            $("#activitytypelist :input").attr("disabled", true);
         }
         else if (($(this).val() == "activity"))
         {
-            $("#classtypelist").hide();
             $("#activitytypelist").show();
-            $("#classtypelist :input").attr("disabled", true);
             $("#activitytypelist :input").attr("disabled", false);
+        }
+        else
+        {
+            $("#disciplinetypelist").show();
+            $("#disciplinetypelist :input").attr("disabled", false);
         }
     });
 </script> 

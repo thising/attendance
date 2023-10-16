@@ -166,15 +166,20 @@ def save_activity(request):
                         )
             elif activity_type == "activity":
                 level = request.POST.get("said_%d" % student.id, None)
-                discipline = request.POST.get("sdid_%d" % student.id, None)
                 if level and level != "none":
                     report = Report(
                             activity = activity,
                             student = student,
-                            level = level,
-                            discipline = discipline
+                            level = level
                         )
             else:
+                discipline = request.POST.get("sdid_%d" % student.id, None)
+                if discipline and discipline != "none":
+                    report = Report(
+                            activity = activity,
+                            student = student,
+                            discipline = discipline
+                        )
                 pass
             if report:
                 report.save()
@@ -207,10 +212,11 @@ def review_activity(request):
                 report = None
             
             if report:
-                if activity.activity_type == "class":
+                if activity.activity_type == 'class':
                     status = report.status
-                elif activity.activity_type == "activity":
+                elif activity.activity_type == 'activity':
                     level = report.level
+                else:
                     discipline = report.discipline
 
             to_show += [(
@@ -227,8 +233,9 @@ def review_activity(request):
                 "class": current_class,
                 "is_owner": is_owner,
                 "activity": activity,
-                "is_class": activity.activity_type == "class",
-                "is_activity": activity.activity_type == "activity",
+                "is_class": activity.activity_type == 'class',
+                "is_activity": activity.activity_type == 'activity',
+                "is_discipline": activity.activity_type == 'discipline',
                 "students": to_show,
             })
     return redirect("class.html?classcode=%s" % classcode)
@@ -283,12 +290,10 @@ def release_activity(request):
                             pass
                 elif activity.activity_type == "activity":
                     level = request.POST.get("said_%d" % student.id, None)
-                    discipline = request.POST.get("sdid_%d" % student.id, None)
                     if level:
                         if report:
                             if level != "none":
                                 report.level = level
-                                report.discipline = discipline
                             else:
                                 report.delete()
                                 report = None
@@ -296,13 +301,27 @@ def release_activity(request):
                             report = Report(
                                 activity = activity,
                                 student = student,
-                                level = level,
-                                discipline = discipline
+                                level = level
                                 )
                         else:
                             pass
                 else:
-                    pass
+                    discipline = request.POST.get("sdid_%d" % student.id, None)
+                    if discipline:
+                        if report:
+                            if discipline != "none":
+                                report.discipline = discipline
+                            else:
+                                report.delete()
+                                report = None
+                        elif discipline != "none":
+                            report = Report(
+                                activity = activity,
+                                student = student,
+                                discipline = discipline
+                                )
+                        else:
+                            pass
 
                 if report:
                     report.save()
@@ -315,6 +334,7 @@ def release_activity(request):
         for student in students:
             status = "present"
             level = "none"
+            discipline = "none"
             report = None
             
             try:
@@ -327,6 +347,8 @@ def release_activity(request):
                     status = report.status
                 elif activity.activity_type == "activity":
                     level = report.level
+                else:
+                    discipline = report.discipline
 
             to_show += [(
                     student.id,
@@ -334,7 +356,8 @@ def release_activity(request):
                     student.name,
                     student.get_sex_display(),
                     status,
-                    level
+                    level,
+                    discipline
                 )]
 
         return render(request, "review_activity.html", {
@@ -343,6 +366,7 @@ def release_activity(request):
                 "activity": activity,
                 "is_class": activity.activity_type == "class",
                 "is_activity": activity.activity_type == "activity",
+                "is_discipline": activity.activity_type == "discipline",
                 "students": to_show,
                 "message": "保存失败",
             })

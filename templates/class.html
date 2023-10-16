@@ -128,6 +128,7 @@
                     <!--<th rowspan="2">性别</th>-->
                     <th colspan="3">考勤</th>
                     <th colspan="3">活动</th>
+                    <th colspan="3">违纪</th>
                     <th rowspan="2">分数</th>
                 </tr>
                 <tr>
@@ -137,6 +138,9 @@
                     <th>班级</th>
                     <th>院级</th>
                     <th>校级</th>
+                    <th>轻度</th>
+                    <th>中度</th>
+                    <th>严重</th>
                 </tr>
                 {% for item in summary %}
                     <tr>
@@ -149,7 +153,10 @@
                         <td>{% if item.6 > 0 %}<span class="label label-success">{% else %}<span>{% endif %}{{ item.6 }}</span></td>
                         <td>{% if item.7 > 0 %}<span class="label label-success">{% else %}<span>{% endif %}{{ item.7 }}</span></td>
                         <td>{% if item.8 > 0 %}<span class="label label-success">{% else %}<span>{% endif %}{{ item.8 }}</span></td>
-                        <td>{{ item.9 }}</td>
+                        <td>{% if item.9 > 0 %}<span class="label label-danger">{% else %}<span>{% endif %}{{ item.9 }}</span></td>
+                        <td>{% if item.10 > 0 %}<span class="label label-danger">{% else %}<span>{% endif %}{{ item.10 }}</span></td>
+                        <td>{% if item.11 > 0 %}<span class="label label-danger">{% else %}<span>{% endif %}{{ item.11 }}</span></td>
+                        <td>{{ item.12 }}</td>
                     </tr>
                 {% endfor %}
             </table>
@@ -171,6 +178,7 @@
                     <!--<th rowspan="2">性别</th>-->
                     <th colspan="3">考勤</th>
                     <th colspan="3">活动</th>
+                    <th colspan="3">违纪</th>
                     <th rowspan="2">分数</th>
                 </tr>
                 <tr>
@@ -180,6 +188,9 @@
                     <th>班级</th>
                     <th>院级</th>
                     <th>校级</th>
+                    <th>轻度</th>
+                    <th>中度</th>
+                    <th>严重</th>
                 </tr>
                 {% for item in summary_lm %}
                     <tr>
@@ -192,7 +203,10 @@
                         <td>{% if item.6 > 0 %}<span class="label label-success">{% else %}<span>{% endif %}{{ item.6 }}</span></td>
                         <td>{% if item.7 > 0 %}<span class="label label-success">{% else %}<span>{% endif %}{{ item.7 }}</span></td>
                         <td>{% if item.8 > 0 %}<span class="label label-success">{% else %}<span>{% endif %}{{ item.8 }}</span></td>
-                        <td>{{ item.9 }}</td>
+                        <td>{% if item.9 > 0 %}<span class="label label-danger">{% else %}<span>{% endif %}{{ item.9 }}</span></td>
+                        <td>{% if item.10 > 0 %}<span class="label label-danger">{% else %}<span>{% endif %}{{ item.10 }}</span></td>
+                        <td>{% if item.11 > 0 %}<span class="label label-danger">{% else %}<span>{% endif %}{{ item.11 }}</span></td>
+                        <td>{{ item.12 }}</td>
                     </tr>
                 {% endfor %}
             </table>

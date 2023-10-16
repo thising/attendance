@@ -17,7 +17,7 @@
                     <tr>
                         <td>{{ r.0 }}</td>
                         <td>{{ r.1 }}</td>
-                        <td>{% if r.3 %}<span class="label label-danger">{% else %}<span class="label label-success">{% endif %}{{ r.2 }}</span></td>
+                        <td>{% if r.3 == "activity" %}<span class="label label-success">{% else %}<span class="label label-danger">{% endif %}{{ r.2 }}</span></td>
                     </tr>
                     {% endfor %}
                 </table>

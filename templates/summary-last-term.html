@@ -10,28 +10,32 @@
 <div class="text-center">
     <table class="table table-striped table-bordered table-condensed">
         <tr>
-            <th rowspan="2">学号</th>
-            <th rowspan="2">姓名</th>
-            <!--<th rowspan="2">性别</th>-->
-            <th colspan="3">考勤</th>
-            <th colspan="3">活动</th>
-            <th rowspan="2">分数</th>
-        </tr>
-        <tr>
-            <th>缺勤</th>
-            <th>迟到</th>
-            <th>请假</th>
-            <th>班级</th>
-            <th>院级</th>
-            <th>校级</th>
-        </tr>
+                <th rowspan="2">学号</th>
+                <th rowspan="2">姓名</th>
+                <!--<th rowspan="2">性别</th>-->
+                <th colspan="3">考勤</th>
+                <th colspan="3">活动</th>
+                <th colspan="3">违纪</th>
+                <th rowspan="2">分数</th>
+            </tr>
+            <tr>
+                <th>缺勤</th>
+                <th>迟到</th>
+                <th>请假</th>
+                <th>班级</th>
+                <th>院级</th>
+                <th>校级</th>
+                <th>轻度</th>
+                <th>中度</th>
+                <th>严重</th>
+            </tr>
         
         {% for groups in summary_tm %}
         <tbody id="summary_class_{{ groups.class }}">
         {% for item in groups.summary %}
             <tr>
                 <td>{{ item.0 }}</td>
-                <td>{% if item.10 > 0 %}<a href="last_term_reports.html?student={{ item.11 }}" data-toggle="modal" class="student-term-report-modal">{{ item.1 }}</a>{%  else %}{{ item.1 }}{%  endif %}</td>
+                <td>{% if item.13 > 0 %}<a href="last_term_reports.html?student={{ item.14 }}" data-toggle="modal" class="student-term-report-modal">{{ item.1 }}</a>{%  else %}{{ item.1 }}{%  endif %}</td>
                 <!--<td>{{ item.2 }}</td>-->
                 <td>{% if item.3 > 0 %}<span class="label label-danger">{% else %}<span>{% endif %}{{ item.3 }}</span></td>
                 <td>{% if item.4 > 0 %}<span class="label label-danger">{% else %}<span>{% endif %}{{ item.4 }}</span></td>
@@ -39,7 +43,10 @@
                 <td>{% if item.6 > 0 %}<span class="label label-success">{% else %}<span>{% endif %}{{ item.6 }}</span></td>
                 <td>{% if item.7 > 0 %}<span class="label label-success">{% else %}<span>{% endif %}{{ item.7 }}</span></td>
                 <td>{% if item.8 > 0 %}<span class="label label-success">{% else %}<span>{% endif %}{{ item.8 }}</span></td>
-                <td>{{ item.9|floatformat:"2" }}</td>
+                <td>{% if item.9 > 0 %}<span class="label label-danger">{% else %}<span>{% endif %}{{ item.9 }}</span></td>
+                <td>{% if item.10 > 0 %}<span class="label label-danger">{% else %}<span>{% endif %}{{ item.10 }}</span></td>
+                <td>{% if item.11 > 0 %}<span class="label label-danger">{% else %}<span>{% endif %}{{ item.11 }}</span></td>
+                <td>{{ item.12|floatformat:"2" }}</td>
             </tr>
         {% endfor %}
         </tbody>
