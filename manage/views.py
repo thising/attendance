@@ -83,7 +83,7 @@ def class_info(request):
         return render(request, "class.html", {
                 "class": current_class,
                 "is_owner": is_owner,
-                "activities": None if activities is None else activities[len(activities_today):15],
+                "activities": None if activities is None else activities[len(activities_today):50],
                 "activities_today": activities_today,
                 "summary": summary,
                 "summary_lm": summary_last_month,
@@ -131,7 +131,7 @@ def create_activity(request):
         managecode = request.POST.get("managecode", "")
         today = datetime.now()
         today_count = current_class.activity_set.all().filter(time__gt = datetime(today.year, today.month, today.day)).count()
-        if (managecode == current_class.managecode and today_count < 10) or (request.user.is_authenticated and current_class.owner == request.user):
+        if (managecode == current_class.managecode and today_count < 30) or (request.user.is_authenticated and current_class.owner == request.user):
             return render(request, "create_activity.html", {
                     "students": current_class.student_set.all(),
                     "class": current_class,

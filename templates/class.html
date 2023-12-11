@@ -51,8 +51,8 @@
                         {% csrf_token %}
                         {% include "block_input_class_code.html" %}
                         {% if not is_owner %}
-                        {% if activities_today|length > 9 %}
-                        <label for="inputManagecode" class="text-danger">非老师每天最多只能新增10条记录</label>
+                        {% if activities_today|length > 29 %}
+                        <label for="inputManagecode" class="text-danger">非老师每天最多只能新增30条记录</label>
                         {% else %}
                         <label for="inputManagecode" class="sr-only">Input manage code</label>
                         <input type="text" id="inputManagecode" class="form-control text-center" name="managecode" placeholder="请输入管理密码" required>
@@ -91,7 +91,7 @@
     {% if is_owner %}
         <div class="col-sm-6">
         <div class="page-header">
-            <h2>记录审核 <small>最近15条</small> </h2>
+            <h2>记录审核 <small>最近50条</small> </h2>
         </div>
         <ul class="list-group">
             {% for activity in activities %}
