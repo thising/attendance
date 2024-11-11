@@ -83,7 +83,7 @@ def class_info(request):
         return render(request, "class.html", {
                 "class": current_class,
                 "is_owner": is_owner,
-                "activities": None if activities is None else activities[len(activities_today):50],
+                "activities": None if activities is None else activities[len(activities_today):80],
                 "activities_today": activities_today,
                 "summary": summary,
                 "summary_lm": summary_last_month,
