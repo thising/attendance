@@ -249,7 +249,7 @@ class Student(models.Model):
             else:
                 desc = item.get_status_display()
 
-            ret += [(item.activity.time.strftime("%Y-%m-%d %H:%M"), item.activity.name, desc, item.activity.activity_type)]
+            ret += [(item.activity.time.strftime("%Y-%m-%d %H:%M"), item.activity.name, desc, item.activity.activity_type, item.activity.id)]
 
         return ret
 
@@ -363,25 +363,37 @@ def count_summary_with_instance(instance):
     atype = instance.activity.activity_type
     sc = None
     try:
-        sc = student.summarycount_set.get(year = today.year, month = today.month)
+        scs = student.summarycount_set.all()
+        if scs:
+            for sc in scs:
+                reports = student.report_set.filter(activity__time__year = sc.year, activity__time__month = sc.month)
+                sc.absent_count = reports.filter(status = "absent").count()
+                sc.late_count = reports.filter(status = "late").count()
+                sc.leave_count = reports.filter(status = "leave").count()
+                sc.low_count = reports.filter(level = "low").count()
+                sc.mid_count = reports.filter(level = "mid").count()
+                sc.high_count = reports.filter(level = "high").count()
+                sc.discipline_low_count = reports.filter(discipline = "low").count()
+                sc.discipline_mid_count = reports.filter(discipline = "mid").count()
+                sc.discipline_high_count = reports.filter(discipline = "high").count()
+                sc.save()
+        else:
+            sc = SummaryCount(student = student, year = today.year, month = today.month)
+
+            reports = student.report_set.filter(activity__time__year = today.year, activity__time__month = today.month)
+            sc.absent_count = reports.filter(status = "absent").count()
+            sc.late_count = reports.filter(status = "late").count()
+            sc.leave_count = reports.filter(status = "leave").count()
+            sc.low_count = reports.filter(level = "low").count()
+            sc.mid_count = reports.filter(level = "mid").count()
+            sc.high_count = reports.filter(level = "high").count()
+            sc.discipline_low_count = reports.filter(discipline = "low").count()
+            sc.discipline_mid_count = reports.filter(discipline = "mid").count()
+            sc.discipline_high_count = reports.filter(discipline = "high").count()
+            sc.save()
+
     except Exception as e:
         pass
-
-    if sc is None:
-        sc = SummaryCount(student = student, year = today.year, month = today.month)
-
-    reports = student.report_set.filter(activity__time__year = today.year, activity__time__month = today.month)
-    sc.absent_count = reports.filter(status = "absent").count()
-    sc.late_count = reports.filter(status = "late").count()
-    sc.leave_count = reports.filter(status = "leave").count()
-    sc.low_count = reports.filter(level = "low").count()
-    sc.mid_count = reports.filter(level = "mid").count()
-    sc.high_count = reports.filter(level = "high").count()
-    sc.discipline_low_count = reports.filter(discipline = "low").count()
-    sc.discipline_mid_count = reports.filter(discipline = "mid").count()
-    sc.discipline_high_count = reports.filter(discipline = "high").count()
-
-    sc.save()
 
 @receiver(post_save, sender = Report)
 def report_finished_saving(sender, instance, **kwargs):
