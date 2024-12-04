@@ -99,7 +99,7 @@ def student_term_reports(request):
     if student is not None:
         if request.user.is_authenticated and student.inclass.owner == request.user:
             is_owner = True
-            return render(request, "student_term_reports.html", {"last_term": False, "name": student.name, "reports" : student.report_term()})
+            return render(request, "student_term_reports.html", {"class": student.inclass, "last_term": False, "name": student.name, "reports" : student.report_term()})
     return render(request, "student_term_reports.html", {"name": "数据错误", "reports" : [("数据查询失败", "数据查询失败", "数据查询失败")]})
 
 def student_last_term_reports(request):
