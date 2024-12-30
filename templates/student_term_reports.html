@@ -16,7 +16,22 @@
                     {% for r in reports %}
                     <tr>
                         <td>{{ r.0 }}</td>
-                        <td>{{ r.1 }}</td>
+                        <td>
+                            {% if last_term %}
+                            {{ r.1 }}
+                            {% else %}
+                            <form role="form" action="review_activity.html" method="post">
+                                {% csrf_token %}
+                                {% include "block_input_class_code.html" %}
+                                <input type="hidden" name="aid" value="{{ r.4 }}">
+                                <button class="btn btn-sm btn-default btn-block" type="submit">
+                                    <div class="text-center">
+                                        {{ r.1 }}
+                                    </div>
+                                </button>
+                            </form>
+                            {% endif %}
+                        </td>
                         <td>{% if r.3 == "activity" %}<span class="label label-success">{% else %}<span class="label label-danger">{% endif %}{{ r.2 }}</span></td>
                     </tr>
                     {% endfor %}
