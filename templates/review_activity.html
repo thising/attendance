@@ -81,6 +81,7 @@
     <a class="btn btn-danger btn-block" href="class.html?classcode={{ class.sharecode }}">取消</a>
 </form>
 {% if is_owner %}
+<br />
 <form id="activity-remove" role="form" action="remove_activity.html" method="post">
     <div class="form-group">
         {% csrf_token %}
@@ -90,4 +91,18 @@
     </div>
 </form>
 {% endif %}
+{% endblock %}
+
+{% block BLOCK_CUSTOM_JS %}
+<script type="text/javascript">
+    $('#activity-remove').submit(function(e) {
+        var currentForm = this;
+        e.preventDefault();
+        bootbox.prompt("该活动删除后，包含在该活动中的考勤数据会被一并清除，并不可恢复，请慎重操作！<br />输入 yes 并确认:", function(result) {
+            if (result == 'yes') {
+                currentForm.submit();
+            }
+        });
+    });
+</script>
 {% endblock %}
