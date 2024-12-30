@@ -240,6 +240,28 @@ def review_activity(request):
             })
     return redirect("class.html?classcode=%s" % classcode)
 
+def remove_activity(request):
+    classcode = request.POST.get("classcode", "")
+    current_class = Class.objects.get(sharecode = classcode)
+
+    aid = request.POST.get("aid", "")
+    activity = Activity.objects.get(id = aid)
+
+    is_owner = False
+    if request.user.is_authenticated and current_class.owner == request.user:
+        is_owner = True
+
+    if current_class is not None and activity is not None:
+        logger.info("用户 <%r> 开始删除班级 <%r> 中的活动 <%r><%r> !!!", request.user.username, current_class.classname, aid, activity.name)
+
+        reports = Report.objects.filter(activity = activity)
+        for r in reports:
+            r.delete()
+
+        activity.delete()
+
+    return redirect("class.html?classcode=%s" % classcode)
+
 def release_activity(request):
     classcode = request.POST.get("classcode", "")
     current_class = Class.objects.get(sharecode = classcode)

@@ -18,6 +18,7 @@ urlpatterns = [
     url(r'^create_activity.html$', manage_views.create_activity, name='createactivity'), # 创建活动
     url(r'^save_activity.html$', manage_views.save_activity, name='saveactivity'), # 保存活动
     url(r'^review_activity.html$', manage_views.review_activity, name='reviewactivity'), # 审核活动
+    url(r'^remove_activity.html$', manage_views.remove_activity, name='removeactivity'), # 删除活动
     url(r'^release_activity.html$', manage_views.release_activity, name='releaseactivity'), # 发布活动
     url(r'^history_clear.html$', manage_views.clear_history, name='clearhistory'), # 清除历史记录
     url(r'^class_remove.html$', manage_views.remove_class, name='removeclass'), # 删除班级

@@ -80,4 +80,14 @@
     <button class="btn btn-primary btn-block" type="submit">保存记录</button>
     <a class="btn btn-danger btn-block" href="class.html?classcode={{ class.sharecode }}">取消</a>
 </form>
+{% if is_owner %}
+<form id="activity-remove" role="form" action="remove_activity.html" method="post">
+    <div class="form-group">
+        {% csrf_token %}
+        {% include "block_input_class_code.html" %}
+        <input type="hidden" name="aid" value="{{ activity.id }}">
+        <button class="btn btn-sm btn-danger btn-block" type="submit">删除活动</button>
+    </div>
+</form>
+{% endif %}
 {% endblock %}
