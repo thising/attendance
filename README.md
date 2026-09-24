@@ -2,13 +2,13 @@
 
 面向班级日常管理，记录考勤、活动加分与违纪扣分。界面采用纸白、墨色、朱砂和竹节标志；快速点名直接选择状态，录入后立即计分。
 
-当前为本地验收版本，未部署。唯一生效的改造依据是 [OpenSpec 提案](openspec/changes/modernize-attendance-management/proposal.md)，完成范围与发布限制见 [实施验收记录](openspec/changes/modernize-attendance-management/implementation-validation.md) 和 [任务清单](openspec/changes/modernize-attendance-management/tasks.md)。
+当前在 [ams.unzip.work](https://ams.unzip.work/) 以独立服务上线，实际部署代码为 `070ef8f`。唯一生效的改造依据是 [OpenSpec 提案](openspec/changes/modernize-attendance-management/proposal.md)，实际发布范围、数据时点与回滚见 [发布记录](openspec/changes/modernize-attendance-management/release.md)。VPS207 旧站按用户要求继续运行，使用者需只在新站录入，两个站点不会自动同步。
 
-2026-09-24 17:04（北京时间）从VPS207的`managedb.sqlite3`只读取得新的固定审查快照：5班、243人、64条活动、155条学生报告，243人九类次数及分数与源缓存逐项一致。SHA-256、导入和开放问题见[实施验收 B1](openspec/changes/modernize-attendance-management/implementation-validation.md)。本地 [8005最新隔离审查副本](http://127.0.0.1:8005/?term=2026-autumn)展示该取样；[8002前一取样](http://127.0.0.1:8002/)仍是63活动/110报告，[8003旧版只读对照](http://127.0.0.1:8003/index.html)不变。审查账号资料只在被 Git 忽略的`.local/audits/vps207-20260923/ui-access.json`，8001仍是原演示环境。代码提交`533f9c2`及标签`duxing-local-baseline-20260924`已推送至 GitHub `codex/duxing-modernization` 分支，未部署；线上继续录入时数据会变化。新版包含匿名只读报告、五类Top 3、工作台筛选/CSV及统一视觉文案。**用户要求暂不开展线上替换；生产迁移谱系与默认迁移链不兼容，正式桥接尚待集成，不得直接对生产库运行下方开发初始化命令。**
+2026-09-24 17:04（北京时间）从 VPS207 的 `managedb.sqlite3` 只读取得固定来源快照：5 班、243 人、64 条活动、155 条学生报告，243 人九类次数及分数与源缓存逐项一致。用户明确选择这份已同步快照作为本次上线数据；17:04 后旧站的新记录不会自动带入。SHA-256 与隔离迁移演练见 [实施验收记录](openspec/changes/modernize-attendance-management/implementation-validation.md)。本地 [8005 审查副本](http://127.0.0.1:8005/?term=2026-autumn)仍展示同一取样。正式站通过独立生产迁移谱系在**副本**上升级后导入，不曾对 VPS207 运行旧 `0002` 或修改其数据库。下方开发初始化命令仅用于空开发库，不适用于生产来源。
 
 ## 本地运行
 
-公开报告现使用数据库预生成快照，业务提交后更新，月初边界刷新和北京时间04:00一致性校验的**待部署配置说明**见[发布准备](openspec/changes/modernize-attendance-management/release.md)。本轮没有安装线上定时任务或部署。
+公开报告使用数据库预生成快照，业务提交后更新；新站已配置北京时间 00:01 月初边界刷新和 04:00 一致性校验。目标机路径、运行环境和回滚边界见 [部署契约](deploy/README.md) 与 [发布记录](openspec/changes/modernize-attendance-management/release.md)。
 
 运行基线：Python 3.12、Django 5.2；依赖以 `requirements.txt` / `requirements-dev.txt` 为准。已有个人 `Pipfile` 文件保留，不作为本版本运行依据。
 
