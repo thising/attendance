@@ -25,6 +25,9 @@ server {
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-Frame-Options "DENY" always;
 
+    location = /admin { return 404; }
+    location ^~ /admin/ { return 404; }
+
     location ^~ /static/ {
         alias /opt/duxing/current/.local/staticfiles/;
     }
