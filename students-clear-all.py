@@ -1,22 +1,2 @@
-from django.db import models
-from manage.models import *
-
-records = Report.objects.all()
-for i in records:
-	i.delete()
-
-records = SummaryCount.objects.all()
-for i in records:
-	i.delete()
-
-records = Activity.objects.all()
-for i in records:
-	i.delete()
-
-records = Student.objects.all()
-for i in records:
-	i.delete()
-
-records = Class.objects.all()
-for i in records:
-	i.delete()
+"""Retired legacy maintenance entry point; cannot bypass term locks."""
+raise SystemExit("旧维护脚本已停用。请使用笃行工作台的授权操作；汇总检查使用 manage.py preview_rebuild。")

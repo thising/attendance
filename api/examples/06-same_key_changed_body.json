@@ -1,0 +1,53 @@
+{
+  "name": "same_key_changed_body",
+  "synthetic": true,
+  "description": "仅合同：同键改内容不是重试，返回409并保持第一次结果。",
+  "request": {
+    "method": "POST",
+    "path": "/classes/101/records",
+    "headers": {
+      "Authorization": "Bearer SYNTHETIC-NOT-A-CREDENTIAL",
+      "Content-Type": "application/json",
+      "Idempotency-Key": "00000000-0000-4000-8000-000000000001"
+    },
+    "body": {
+      "expected_current_term_key": "2026-autumn",
+      "term_key": "2026-autumn",
+      "roster_revision": 1,
+      "kind": "class",
+      "date": "2026-10-03",
+      "name": "合成专业课点名",
+      "students": [
+        {
+          "id": "201",
+          "value": "absent"
+        },
+        {
+          "id": "202",
+          "value": "normal"
+        }
+      ]
+    }
+  },
+  "response": {
+    "status": 409,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "error": {
+        "code": "idempotency_conflict",
+        "message": "提交编号已经用于不同内容，请核对原结果。",
+        "retryable": false,
+        "fields": []
+      },
+      "meta": {
+        "request_id": "synthetic-request-001",
+        "business_date": "2026-10-03",
+        "timezone": "Asia/Shanghai",
+        "current_term_key": "2026-autumn",
+        "replayed": false
+      }
+    }
+  }
+}

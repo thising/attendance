@@ -1,5 +1,6 @@
-manage/migrations/*
 *.txt
+!requirements.txt
+!requirements-dev.txt
 *.sqlite3
 *.bak
 *.db
@@ -10,3 +11,9 @@ attendance/settings.py
 *.log
 __pycache__
 *.pid
+.venv/
+.venv-duxing/
+.local/
+.pytest_cache/
+.coverage
+htmlcov/

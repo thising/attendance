@@ -1,0 +1,45 @@
+{
+  "name": "classes_next_page",
+  "synthetic": true,
+  "description": "仅合同：同一快照下一页；next_cursor为null表示完成。",
+  "request": {
+    "method": "GET",
+    "path": "/classes",
+    "headers": {
+      "Authorization": "Bearer SYNTHETIC-NOT-A-CREDENTIAL"
+    },
+    "query": {
+      "limit": 1,
+      "cursor": "synthetic-next-class-page"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "result": [
+        {
+          "id": "102",
+          "name": "合成设计二班",
+          "owner_id": "100",
+          "revision": 1,
+          "archived": false
+        }
+      ],
+      "pagination": {
+        "limit": 1,
+        "next_cursor": null,
+        "snapshot_revision": "synthetic-snapshot-1"
+      },
+      "meta": {
+        "request_id": "synthetic-request-001",
+        "business_date": "2026-10-03",
+        "timezone": "Asia/Shanghai",
+        "current_term_key": "2026-autumn",
+        "replayed": false
+      }
+    }
+  }
+}

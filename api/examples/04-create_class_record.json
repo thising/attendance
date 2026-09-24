@@ -1,0 +1,55 @@
+{
+  "name": "create_class_record",
+  "synthetic": true,
+  "description": "仅合同：一次提交包含完整名单和normal；成功只生成一次记录及概要日志。",
+  "request": {
+    "method": "POST",
+    "path": "/classes/101/records",
+    "headers": {
+      "Authorization": "Bearer SYNTHETIC-NOT-A-CREDENTIAL",
+      "Content-Type": "application/json",
+      "Idempotency-Key": "00000000-0000-4000-8000-000000000001"
+    },
+    "body": {
+      "expected_current_term_key": "2026-autumn",
+      "term_key": "2026-autumn",
+      "roster_revision": 1,
+      "kind": "class",
+      "date": "2026-10-03",
+      "name": "合成专业课点名",
+      "students": [
+        {
+          "id": "201",
+          "value": "late"
+        },
+        {
+          "id": "202",
+          "value": "normal"
+        }
+      ]
+    }
+  },
+  "response": {
+    "status": 201,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "result": {
+        "record_id": "301",
+        "record_revision": 1,
+        "term_key": "2026-autumn",
+        "operation": "created",
+        "state": "active",
+        "affected_students": 2
+      },
+      "meta": {
+        "request_id": "synthetic-request-001",
+        "business_date": "2026-10-03",
+        "timezone": "Asia/Shanghai",
+        "current_term_key": "2026-autumn",
+        "replayed": false
+      }
+    }
+  }
+}

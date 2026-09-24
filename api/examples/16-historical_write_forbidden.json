@@ -1,0 +1,53 @@
+{
+  "name": "historical_write_forbidden",
+  "synthetic": true,
+  "description": "仅合同：上下文明确知道当前秋季，却试图向历史春季新增；scope不能解锁历史。",
+  "request": {
+    "method": "POST",
+    "path": "/classes/101/records",
+    "headers": {
+      "Authorization": "Bearer SYNTHETIC-NOT-A-CREDENTIAL",
+      "Content-Type": "application/json",
+      "Idempotency-Key": "00000000-0000-4000-8000-000000000004"
+    },
+    "body": {
+      "expected_current_term_key": "2026-autumn",
+      "term_key": "2026-spring",
+      "roster_revision": 1,
+      "kind": "class",
+      "date": "2026-07-10",
+      "name": "合成专业课点名",
+      "students": [
+        {
+          "id": "201",
+          "value": "late"
+        },
+        {
+          "id": "202",
+          "value": "normal"
+        }
+      ]
+    }
+  },
+  "response": {
+    "status": 403,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "error": {
+        "code": "term_read_only",
+        "message": "已结束学期仅可查看。",
+        "retryable": false,
+        "fields": []
+      },
+      "meta": {
+        "request_id": "synthetic-request-001",
+        "business_date": "2026-10-03",
+        "timezone": "Asia/Shanghai",
+        "current_term_key": "2026-autumn",
+        "replayed": false
+      }
+    }
+  }
+}

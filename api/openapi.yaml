@@ -1,0 +1,720 @@
+openapi: 3.1.0
+info:
+  title: 笃行 · FUTURE 机器接口合同
+  version: 0.1.0-draft
+  description: |
+    仅合同，全部 /api/v1 机器端点尚未启用。本文件不声明任何已部署 API。
+    浏览器 Session、班级访问码和班委共享密码均不能作为机器凭据。
+    未来 HTTP 适配器必须复用已批准的业务服务、班级归属检查、历史冻结与审计。
+    春季为 2 月 1 日至 8 月 1 日前；秋季为 9 月 1 日至次年 2 月 1 日前。
+    上海业务日期进入 8 月时业务只读；已结束学期的名单、记录、规则与成绩全年只读。
+    删除、批量多记录修改、评分权重变更、凭据签发及历史解锁均不在 paths 中。
+  x-authority: ../openspec/changes/modernize-attendance-management/specs/agent-contract/spec.md
+servers:
+  - url: https://attendance.invalid/api/v1
+    description: 保留的不可部署占位域名；不是实际服务地址
+x-implementation-status: not-enabled
+x-future-base-path: /api/v1
+x-high-impact-activation-gates:
+  - 明确委托负责人、班级、动作、期限与可撤销凭据；默认只读
+  - 删除、批量多记录修改及权重修改须先定义绑定目标和版本的短期预览及提交凭据
+  - 预览过期、记录/规则/名单版本变化或学期结束时拒绝提交并要求重新预览
+  - 人工确认与否由明确的负责人授权策略决定；机器写权限不能解锁历史
+  - 不得先启用危险操作再补预览；全量清空、班级删除和历史解锁不提供机器入口
+security:
+  - DelegatedBearer: []
+tags:
+  - name: classes
+  - name: records
+  - name: scoring
+paths:
+  /classes:
+    get:
+      operationId: listClasses
+      tags: [classes]
+      summary: FUTURE · 分页列出凭据获授权的班级
+      x-implementation-status: not-enabled
+      x-required-scopes: [classes:read]
+      description: 只返回签发负责人拥有且凭据明确允许的班级；不接受 owner 参数。
+      parameters:
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Cursor'}
+      responses:
+        '200':
+          description: 班级页；空列表合法
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ClassPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /classes/{class_id}/students:
+    parameters:
+      - {$ref: '#/components/parameters/ClassId'}
+    get:
+      operationId: listTermStudents
+      tags: [classes]
+      summary: FUTURE · 分页读取学期名单快照
+      x-implementation-status: not-enabled
+      x-required-scopes: [students:read]
+      description: |
+        历史返回归档身份，不使用当前姓名/名单替代；无法可靠还原时返回
+        historical_snapshot_unavailable。当前学期完整名单与 roster_revision 用于整单录入。
+      parameters:
+        - {$ref: '#/components/parameters/TermKey'}
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Cursor'}
+      responses:
+        '200':
+          description: 学期名单页
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/StudentPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /classes/{class_id}/records:
+    parameters:
+      - {$ref: '#/components/parameters/ClassId'}
+    get:
+      operationId: listRecords
+      tags: [records]
+      summary: FUTURE · 分页读取指定学期记录
+      x-implementation-status: not-enabled
+      x-required-scopes: [records:read]
+      parameters:
+        - {$ref: '#/components/parameters/TermKey'}
+        - name: kind
+          in: query
+          schema: {$ref: '#/components/schemas/RecordKind'}
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Cursor'}
+      responses:
+        '200':
+          description: 按 date 倒序、相同日期按稳定 id 倒序排列；不返回完整学生数组
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RecordPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+    post:
+      operationId: createRecord
+      tags: [records]
+      summary: FUTURE · 原子创建一条当前学期记录
+      x-implementation-status: not-enabled
+      x-required-scopes: [records:create]
+      description: |
+        students 为对应 roster_revision 的完整当前学期名单；每人恰好一次，默认状态也须传 normal。
+        不接受跨班、重复或遗漏学生。所有报告、派生次数、幂等回执和成功审计一起提交或回滚。
+        term_key 为目标学期；expected_current_term_key 来自最近读响应的 meta，用于识别过期上下文。
+        只允许不晚于服务器今天且属于当前学期的 date。独立活动即使内容相同也允许使用新幂等键创建。
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateRecordRequest'}
+      responses:
+        '201': {$ref: '#/components/responses/RecordMutation'}
+        '200':
+          description: 已成功提交的重放；result 返回原回执，meta.replayed 为 true
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RecordMutationResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /classes/{class_id}/records/{record_id}:
+    parameters:
+      - {$ref: '#/components/parameters/ClassId'}
+      - {$ref: '#/components/parameters/RecordId'}
+    get:
+      operationId: getRecord
+      tags: [records]
+      summary: FUTURE · 读取记录及所属学期学生状态
+      x-implementation-status: not-enabled
+      x-required-scopes: [records:read]
+      responses:
+        '200':
+          description: 完整记录；未记录异常的学期成员显式返回 normal
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RecordResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+    put:
+      operationId: replaceRecord
+      tags: [records]
+      summary: FUTURE · 校验版本后整单修改当前学期记录
+      x-implementation-status: not-enabled
+      x-required-scopes: [records:update]
+      description: |
+        完整替换同一记录的日期、名称和学生状态，不能改变 kind、班级或学期。
+        revision 必须匹配当前记录，roster_revision 必须匹配当前学期名单。
+        当前学期内改月同时更新旧月与新月；学生数组不是局部 PATCH。
+        已结束学期不可改，审核标记为只读输出字段，不能通过请求修改。
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ReplaceRecordRequest'}
+      responses:
+        '200': {$ref: '#/components/responses/RecordMutation'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /classes/{class_id}/summaries:
+    parameters:
+      - {$ref: '#/components/parameters/ClassId'}
+    get:
+      operationId: listTermSummaries
+      tags: [scoring]
+      summary: FUTURE · 分页读取学期及逐月计分
+      x-implementation-status: not-enabled
+      x-required-scopes: [reports:read]
+      description: |
+        一份响应使用同一规则版本和数据快照。当前学期纳入已进入月份，历史使用归档名单与成绩。
+        当前学期月分以规则 base_score 加减分，再截到 minimum_score 与 maximum_score 之间。
+        maximum_score 为 null 时无上限；先逐月截断，再平均，输出两位四舍五入。默认规则为60/0/null。
+        后续分页若规则或数据变化，返回 pagination_stale，禁止默默拼接不同快照。
+        已归档历史结果保持原基线；若缺少可靠归档，不以当前名单或新算法猜测重建。
+      parameters:
+        - {$ref: '#/components/parameters/TermKey'}
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Cursor'}
+      responses:
+        '200':
+          description: 包含明确学期、规则/算法版本、名单版本和月份集合的学生汇总页
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SummaryPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /classes/{class_id}/scoring-policy:
+    parameters:
+      - {$ref: '#/components/parameters/ClassId'}
+    get:
+      operationId: getTermScoringPolicy
+      tags: [scoring]
+      summary: FUTURE · 读取班级所属负责人的学期规则
+      x-implementation-status: not-enabled
+      x-required-scopes: [scoring:read]
+      description: |
+        规则按负责人/学期绑定，在其名下班级共享；此入口不接受 owner，不返回其他班级数据。
+        新权重只能影响当前和未来学期，历史绑定保持不变。没有机器修改权重端点。
+      parameters:
+        - {$ref: '#/components/parameters/TermKey'}
+      responses:
+        '200':
+          description: 九类非负权重、固定加减方向及该学期的月度基础分和上下限
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ScoringPolicyResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+components:
+  securitySchemes:
+    DelegatedBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque delegated credential (FUTURE; not issued)
+      description: |
+        未来可过期、可撤销的机器凭据，绑定真实负责人、明确班级和动作范围，服务器只存散列。
+        默认只读；没有凭据签发端点。每次请求及幂等重放均重验凭据有效性和授权。
+        班委密码、班级访问码、浏览器 Cookie/Session 不接受为此身份。
+      x-scopes:
+        classes:read: 读取获授权班级列表
+        students:read: 读取获授权班级的学期名单
+        records:read: 读取获授权班级的记录
+        reports:read: 读取获授权班级的汇总
+        scoring:read: 读取获授权班级使用的学期规则
+        records:create: 仅创建获授权班级当前学期记录
+        records:update: 仅修改获授权班级当前学期记录
+  parameters:
+    ClassId:
+      name: class_id
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/StableId'}
+    RecordId:
+      name: record_id
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/StableId'}
+    TermKey:
+      name: term_key
+      in: query
+      required: true
+      description: 明确目标学期；只读接口不能靠省略参数猜测学期
+      schema: {$ref: '#/components/schemas/TermKey'}
+    Limit:
+      name: limit
+      in: query
+      description: 每页条数，默认50，范围1至100；同一分页链保持不变
+      schema: {type: integer, minimum: 1, maximum: 100, default: 50}
+    Cursor:
+      name: cursor
+      in: query
+      description: |
+        不透明翻页游标，绑定授权、查询、limit及快照；不能解释为身份凭据。
+        未提供时开始新快照；后续只使用前页 next_cursor。过期或快照变化返回409。
+      schema: {type: string, minLength: 1, maxLength: 2048}
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: |
+        每次逻辑写操作生成独立UUID v4；作用域为已验证机器委托身份、班级和操作/目标。
+        同键同内容只生效一次；同键异内容409。响应不确定、网络失败或503时保留原键与原内容。
+        请求摘要使用校验后的规范字段，学生按ID规范排序；不能用改变JSON字段顺序绕过。
+        该键不能替代身份授权或记录revision，已成功去重结果不能因凭据更新或结果删除而重建。
+      schema: {type: string, format: uuid, pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'}
+  responses:
+    RecordMutation:
+      description: 事务已成功提交或成功提交的重放；以result回执为准，重放不增加日志
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/RecordMutationResponse'}
+    BadRequest:
+      description: 格式/字段/日期/类型错误，整体不写入；修正后作为新逻辑提交使用新键
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    Unauthorized:
+      description: 缺少、无效、到期或已撤销机器凭据；重新授权前不能盲目重试
+      headers:
+        WWW-Authenticate:
+          description: Bearer认证挑战，不含凭据
+          schema: {type: string}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    Forbidden:
+      description: 权限或班级范围不足、已结束学期写入、8月业务只读；写scope不能绕过
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    NotFound:
+      description: 获授权班级范围内目标不存在；不透露其他班级的记录存在性
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    Conflict:
+      description: |
+        同键异内容、记录/名单版本过期、跨学期旧上下文、分页快照过期或历史基线不可用。
+        客户端须按错误码重新读取与核对，不使用新键盲目覆盖冲突。
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    Unavailable:
+      description: SQLite繁忙或暂时不可用；按Retry-After有界退避，写入仍用原键原内容
+      headers:
+        Retry-After:
+          description: 推荐等待秒数；该错误必须返回此头和retry_after_seconds
+          schema: {type: integer, minimum: 1, maximum: 300}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+  schemas:
+    StableId:
+      type: string
+      minLength: 1
+      maxLength: 64
+      pattern: '^[A-Za-z0-9][A-Za-z0-9_-]*$'
+      description: 稳定不透明ID，以字符串传输，不是姓名、学号、访问码或授权凭据
+    Revision:
+      type: integer
+      minimum: 1
+      description: 乐观并发版本；不得由客户端递增猜测，修改时回传最近读取值
+    TermKey:
+      type: string
+      pattern: '^[0-9]{4}-(spring|autumn)$'
+      description: YYYY-spring或YYYY-autumn，年份1900至9998；秋季年份为9月所在年
+    MonthKey:
+      type: string
+      pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$'
+    DecimalAmount:
+      type: string
+      pattern: '^(0|[1-9][0-9]*)\.[0-9]{2}$'
+      description: 非负精确十进制，两位小数字符串；不接受JSON数值、负号、指数或NaN
+    PolicyAmount:
+      type: string
+      pattern: '^(0|[1-9][0-9]{0,5})\.[0-9]{2}$'
+      description: 可配置分值0–999999.99，非负两位小数字符串；月度得分无上限时可超过此配置上限
+    RecordKind:
+      type: string
+      enum: [class, activity, discipline]
+    Meta:
+      type: object
+      additionalProperties: false
+      required: [request_id, business_date, timezone, current_term_key, replayed]
+      properties:
+        request_id: {type: string, minLength: 1, maxLength: 128}
+        business_date: {type: string, format: date}
+        timezone: {type: string, const: Asia/Shanghai}
+        current_term_key:
+          description: 8月为null，其余为服务器当前学期；与目标学期区分
+          oneOf:
+            - {$ref: '#/components/schemas/TermKey'}
+            - {type: 'null'}
+        replayed: {type: boolean, description: 仅成功写入回执重放为true}
+    Pagination:
+      type: object
+      additionalProperties: false
+      required: [limit, next_cursor, snapshot_revision]
+      properties:
+        limit: {type: integer, minimum: 1, maximum: 100}
+        next_cursor:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 2048
+          description: null表示已读完，不以空字符串表示
+        snapshot_revision: {type: string, minLength: 1, maxLength: 128}
+    Class:
+      type: object
+      additionalProperties: false
+      required: [id, name, owner_id, revision, archived]
+      properties:
+        id: {$ref: '#/components/schemas/StableId'}
+        name: {type: string, minLength: 1, maxLength: 30}
+        owner_id: {$ref: '#/components/schemas/StableId'}
+        revision: {$ref: '#/components/schemas/Revision'}
+        archived: {type: boolean}
+    ClassPage:
+      type: object
+      additionalProperties: false
+      required: [result, pagination, meta]
+      properties:
+        result: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/Class'}}
+        pagination: {$ref: '#/components/schemas/Pagination'}
+        meta: {$ref: '#/components/schemas/Meta'}
+    Student:
+      type: object
+      additionalProperties: false
+      required: [id, membership_id, number, name]
+      properties:
+        id: {$ref: '#/components/schemas/StableId'}
+        membership_id: {$ref: '#/components/schemas/StableId'}
+        number: {type: string, minLength: 1, maxLength: 20}
+        name: {type: string, minLength: 1, maxLength: 20}
+    StudentPage:
+      type: object
+      additionalProperties: false
+      required: [result, class_id, term_key, roster_revision, read_only, pagination, meta]
+      properties:
+        result: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/Student'}}
+        class_id: {$ref: '#/components/schemas/StableId'}
+        term_key: {$ref: '#/components/schemas/TermKey'}
+        roster_revision: {$ref: '#/components/schemas/Revision'}
+        read_only: {type: boolean}
+        pagination: {$ref: '#/components/schemas/Pagination'}
+        meta: {$ref: '#/components/schemas/Meta'}
+    StudentValue:
+      type: object
+      additionalProperties: false
+      required: [id, value]
+      properties:
+        id: {$ref: '#/components/schemas/StableId'}
+        value: {type: string, enum: [normal, late, absent, leave, low, mid, high, dlow, dmid, dhigh]}
+    KindAndStudents:
+      description: kind决定唯一一组允许的学生状态，不能混用其他记录类别的值
+      oneOf:
+        - type: object
+          required: [kind, students]
+          properties:
+            kind: {const: class}
+            students:
+              type: array
+              items:
+                allOf:
+                  - {$ref: '#/components/schemas/StudentValue'}
+                  - properties:
+                      value: {enum: [normal, late, absent, leave]}
+        - type: object
+          required: [kind, students]
+          properties:
+            kind: {const: activity}
+            students:
+              type: array
+              items:
+                allOf:
+                  - {$ref: '#/components/schemas/StudentValue'}
+                  - properties:
+                      value: {enum: [normal, low, mid, high]}
+        - type: object
+          required: [kind, students]
+          properties:
+            kind: {const: discipline}
+            students:
+              type: array
+              items:
+                allOf:
+                  - {$ref: '#/components/schemas/StudentValue'}
+                  - properties:
+                      value: {enum: [normal, dlow, dmid, dhigh]}
+    RecordWrite:
+      type: object
+      additionalProperties: false
+      required: [expected_current_term_key, term_key, roster_revision, kind, date, name, students]
+      properties:
+        expected_current_term_key: {$ref: '#/components/schemas/TermKey'}
+        term_key: {$ref: '#/components/schemas/TermKey'}
+        roster_revision: {$ref: '#/components/schemas/Revision'}
+        revision: {$ref: '#/components/schemas/Revision'}
+        kind: {$ref: '#/components/schemas/RecordKind'}
+        date: {type: string, format: date}
+        name: {type: string, minLength: 1, maxLength: 30, pattern: '\S'}
+        students:
+          type: array
+          minItems: 1
+          maxItems: 1000
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/StudentValue'}
+          description: 完整名单，每个学生ID恰好一次；同ID不同value也必须拒绝；整体事务处理
+      allOf:
+        - {$ref: '#/components/schemas/KindAndStudents'}
+    CreateRecordRequest:
+      allOf:
+        - {$ref: '#/components/schemas/RecordWrite'}
+        - not: {required: [revision]}
+    ReplaceRecordRequest:
+      allOf:
+        - {$ref: '#/components/schemas/RecordWrite'}
+        - required: [revision]
+    RecordHeader:
+      type: object
+      additionalProperties: false
+      required: [id, class_id, term_key, kind, date, name, revision, audit_status, read_only, created_at, updated_at]
+      properties:
+        id: {$ref: '#/components/schemas/StableId'}
+        class_id: {$ref: '#/components/schemas/StableId'}
+        term_key: {$ref: '#/components/schemas/TermKey'}
+        kind: {$ref: '#/components/schemas/RecordKind'}
+        date: {type: string, format: date}
+        name: {type: string, minLength: 1, maxLength: 30}
+        revision: {$ref: '#/components/schemas/Revision'}
+        audit_status: {type: string, enum: [preview, release], readOnly: true, description: 保留旧状态，不决定计分生效}
+        read_only: {type: boolean}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    Record:
+      type: object
+      additionalProperties: false
+      required: [record, roster_revision, students]
+      properties:
+        record: {$ref: '#/components/schemas/RecordHeader'}
+        roster_revision: {$ref: '#/components/schemas/Revision'}
+        students: {type: array, maxItems: 1000, uniqueItems: true, items: {$ref: '#/components/schemas/StudentValue'}}
+      description: students的value须符合record.kind；历史只返回归档名单，无法还原则409
+      oneOf:
+        - properties:
+            record:
+              properties:
+                kind: {const: class}
+            students:
+              items:
+                properties:
+                  value: {enum: [normal, late, absent, leave]}
+        - properties:
+            record:
+              properties:
+                kind: {const: activity}
+            students:
+              items:
+                properties:
+                  value: {enum: [normal, low, mid, high]}
+        - properties:
+            record:
+              properties:
+                kind: {const: discipline}
+            students:
+              items:
+                properties:
+                  value: {enum: [normal, dlow, dmid, dhigh]}
+    RecordPage:
+      type: object
+      additionalProperties: false
+      required: [result, pagination, meta]
+      properties:
+        result: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/RecordHeader'}}
+        pagination: {$ref: '#/components/schemas/Pagination'}
+        meta: {$ref: '#/components/schemas/Meta'}
+    RecordResponse:
+      type: object
+      additionalProperties: false
+      required: [result, meta]
+      properties:
+        result: {$ref: '#/components/schemas/Record'}
+        meta: {$ref: '#/components/schemas/Meta'}
+    RecordMutationResult:
+      type: object
+      additionalProperties: false
+      required: [record_id, record_revision, term_key, operation, state, affected_students]
+      properties:
+        record_id: {$ref: '#/components/schemas/StableId'}
+        record_revision: {$ref: '#/components/schemas/Revision'}
+        term_key: {$ref: '#/components/schemas/TermKey'}
+        operation: {type: string, enum: [created, updated]}
+        state: {type: string, enum: [active, deleted], description: 原成功结果后来被合法删除时返回deleted，不重建记录}
+        affected_students: {type: integer, minimum: 0, maximum: 1000}
+    RecordMutationResponse:
+      type: object
+      additionalProperties: false
+      required: [result, meta]
+      properties:
+        result: {$ref: '#/components/schemas/RecordMutationResult'}
+        meta: {$ref: '#/components/schemas/Meta'}
+    Weights:
+      type: object
+      additionalProperties: false
+      required: [absent, late, leave, low, mid, high, dlow, dmid, dhigh]
+      properties:
+        absent: {$ref: '#/components/schemas/PolicyAmount', description: 缺勤扣分，非负分值}
+        late: {$ref: '#/components/schemas/PolicyAmount', description: 迟到扣分，非负分值}
+        leave: {$ref: '#/components/schemas/PolicyAmount', description: 请假扣分，非负分值}
+        low: {$ref: '#/components/schemas/PolicyAmount', description: 班级活动加分}
+        mid: {$ref: '#/components/schemas/PolicyAmount', description: 院级活动加分}
+        high: {$ref: '#/components/schemas/PolicyAmount', description: 校级活动加分}
+        dlow: {$ref: '#/components/schemas/PolicyAmount', description: 轻度违纪扣分}
+        dmid: {$ref: '#/components/schemas/PolicyAmount', description: 中度违纪扣分}
+        dhigh: {$ref: '#/components/schemas/PolicyAmount', description: 严重违纪扣分}
+    Counts:
+      type: object
+      additionalProperties: false
+      required: [absent, late, leave, low, mid, high, dlow, dmid, dhigh]
+      properties:
+        absent: {type: integer, minimum: 0}
+        late: {type: integer, minimum: 0}
+        leave: {type: integer, minimum: 0}
+        low: {type: integer, minimum: 0}
+        mid: {type: integer, minimum: 0}
+        high: {type: integer, minimum: 0}
+        dlow: {type: integer, minimum: 0}
+        dmid: {type: integer, minimum: 0}
+        dhigh: {type: integer, minimum: 0}
+    Term:
+      type: object
+      additionalProperties: false
+      required: [key, start_date, end_date_exclusive, months, read_only]
+      properties:
+        key: {$ref: '#/components/schemas/TermKey'}
+        start_date: {type: string, format: date}
+        end_date_exclusive: {type: string, format: date}
+        months: {type: array, minItems: 1, maxItems: 6, uniqueItems: true, items: {$ref: '#/components/schemas/MonthKey'}}
+        read_only: {type: boolean}
+    ScoringPolicy:
+      type: object
+      additionalProperties: false
+      description: 该学期规则版本；minimum_score <= base_score，maximum_score非null时base_score <= maximum_score。历史版本不可用新配置覆盖。
+      required: [owner_id, term_key, version_id, settings_revision, algorithm_version, base_score, minimum_score, maximum_score, weights, frozen]
+      properties:
+        owner_id: {$ref: '#/components/schemas/StableId'}
+        term_key: {$ref: '#/components/schemas/TermKey'}
+        version_id: {$ref: '#/components/schemas/StableId'}
+        settings_revision: {$ref: '#/components/schemas/Revision'}
+        algorithm_version: {type: string, minLength: 1, maxLength: 64, description: 显式计分/归档算法标识，不用当前算法覆盖旧归档}
+        base_score: {$ref: '#/components/schemas/PolicyAmount', default: '60.00', description: 每个已进入自然月的基础分，无记录也使用本值}
+        minimum_score: {$ref: '#/components/schemas/PolicyAmount', default: '0.00', description: 每月完成加扣分后的最低分}
+        maximum_score:
+          oneOf:
+            - {$ref: '#/components/schemas/PolicyAmount'}
+            - {type: 'null'}
+          default: null
+          description: 每月完成加扣分后的最高分；null表示无上限
+        weights: {$ref: '#/components/schemas/Weights'}
+        frozen: {type: boolean}
+    ScoringPolicyResponse:
+      type: object
+      additionalProperties: false
+      required: [result, meta]
+      properties:
+        result: {$ref: '#/components/schemas/ScoringPolicy'}
+        meta: {$ref: '#/components/schemas/Meta'}
+    MonthSummary:
+      type: object
+      additionalProperties: false
+      required: [month, counts, score]
+      properties:
+        month: {$ref: '#/components/schemas/MonthKey'}
+        counts: {$ref: '#/components/schemas/Counts'}
+        score: {$ref: '#/components/schemas/DecimalAmount'}
+    StudentSummary:
+      type: object
+      additionalProperties: false
+      required: [student, months, term_score]
+      properties:
+        student: {$ref: '#/components/schemas/Student'}
+        months: {type: array, minItems: 1, maxItems: 6, items: {$ref: '#/components/schemas/MonthSummary'}}
+        term_score: {$ref: '#/components/schemas/DecimalAmount'}
+    SummaryPage:
+      type: object
+      additionalProperties: false
+      required: [result, class_id, term, policy, roster_revision, score_basis, pagination, meta]
+      properties:
+        result: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/StudentSummary'}}
+        class_id: {$ref: '#/components/schemas/StableId'}
+        term: {$ref: '#/components/schemas/Term'}
+        policy: {$ref: '#/components/schemas/ScoringPolicy'}
+        roster_revision: {$ref: '#/components/schemas/Revision'}
+        score_basis: {type: string, enum: [current_facts, archived_baseline]}
+        pagination: {$ref: '#/components/schemas/Pagination'}
+        meta: {$ref: '#/components/schemas/Meta'}
+    FieldError:
+      type: object
+      additionalProperties: false
+      required: [path, code, message]
+      properties:
+        path: {type: string, description: JSON Pointer，例如 /students/0/value，header/query使用 /headers 或 /query 前缀}
+        code: {type: string, pattern: '^[a-z][a-z0-9_]*$'}
+        message: {type: string, minLength: 1}
+    Error:
+      type: object
+      additionalProperties: false
+      required: [code, message, retryable, fields]
+      properties:
+        code:
+          type: string
+          enum: [validation_error, invalid_record_date, invalid_term, invalid_cursor, unauthenticated, credential_expired, credential_revoked, forbidden, class_scope_denied, scope_denied, term_read_only, august_read_only, not_found, idempotency_conflict, revision_conflict, roster_conflict, context_expired, pagination_stale, historical_snapshot_unavailable, database_busy, temporarily_unavailable]
+        message: {type: string, minLength: 1, description: 可读提示，不回显凭据或无权查看的学生数据}
+        retryable: {type: boolean, description: 仅暂时性503为true；冲突、到期、历史只读不能盲重试}
+        fields: {type: array, items: {$ref: '#/components/schemas/FieldError'}}
+        current_revision: {$ref: '#/components/schemas/Revision'}
+        current_roster_revision: {$ref: '#/components/schemas/Revision'}
+        retry_after_seconds: {type: integer, minimum: 1, maximum: 300}
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error, meta]
+      properties:
+        error: {$ref: '#/components/schemas/Error'}
+        meta: {$ref: '#/components/schemas/Meta'}

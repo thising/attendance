@@ -1,0 +1,381 @@
+{
+  "activity_date_span": {
+    "first_date": "2023-09-22",
+    "invalid_dates": 0,
+    "last_date": "2023-10-17"
+  },
+  "assumptions": [
+    "Use the legacy fixed weights, monthly floor zero, no ceiling; exact rational averages and two-decimal HALF_UP aggregate presentation.",
+    "Legacy signals count status/level/discipline without checking activity type; typed candidates check the corresponding activity type. Preview records are included in both.",
+    "Legacy semester scores average stored cache rows, including duplicate rows; no stored rows means zero. Legacy monthly get is unavailable for duplicated groups.",
+    "The legacy current-term query has no upper bound and January starts at January of the previous year. Legacy previous spring includes August.",
+    "Candidate denominators assume the observed evidence cohort was present for every included natural month; this is not proven historical enrollment.",
+    "No retained event is treated as zero only for the candidate calculation. Missing retained facts do not prove no real-world activity occurred.",
+    "Dates use SQLite parsing of legacy stored timestamps with no additional application timezone conversion; historical timezone provenance is unverified."
+  ],
+  "current_snapshot_students_without_score_evidence": 288,
+  "evidence_gaps": [
+    "The snapshot has no reliable semester roster, enrollment history, or certified final score archive; current students are not substituted for historical membership.",
+    "Deleted students, activities and reports cannot be reconstructed from surviving caches. Admin deletion counts are partial evidence only; cascades and web/script deletions may leave no equivalent ledger.",
+    "Surviving cache rows may reflect later corrections; reproducing this snapshot is not proof of what users saw at the time.",
+    "Missing migration 0002_auto_20200927_0037 source remains unresolved; physical schema similarity does not establish historical data transformations."
+  ],
+  "legacy_source": "00e487b:manage/models.py",
+  "months": [
+    {
+      "cache_groups_with_count_difference": 0,
+      "cache_minus_legacy_fact_counts": {
+        "absent": 0,
+        "dhigh": 0,
+        "dlow": 0,
+        "dmid": 0,
+        "high": 0,
+        "late": 0,
+        "leave": 0,
+        "low": 0,
+        "mid": 0
+      },
+      "cache_rows": 331,
+      "cached_count_totals": {
+        "absent": 9,
+        "dhigh": 0,
+        "dlow": 0,
+        "dmid": 0,
+        "high": 0,
+        "late": 1,
+        "leave": 23,
+        "low": 28,
+        "mid": 2
+      },
+      "duplicate_cache_groups": 0,
+      "evidence_member_count": 331,
+      "legacy_field_fact_count_totals": {
+        "absent": 9,
+        "dhigh": 0,
+        "dlow": 0,
+        "dmid": 0,
+        "high": 0,
+        "late": 1,
+        "leave": 23,
+        "low": 28,
+        "mid": 2
+      },
+      "members_with_cache": 331,
+      "members_with_reports": 49,
+      "month": "2023-09",
+      "report_members_without_cache": 0,
+      "report_rows": 63,
+      "typed_fact_count_totals": {
+        "absent": 9,
+        "dhigh": 0,
+        "dlow": 0,
+        "dmid": 0,
+        "high": 0,
+        "late": 1,
+        "leave": 23,
+        "low": 28,
+        "mid": 2
+      },
+      "unique_cache_vs_retained_legacy_facts": {
+        "after_mean": "60.05",
+        "after_total": "19875.00",
+        "before_mean": "60.05",
+        "before_total": "19875.00",
+        "changed_at_two_decimals": 0,
+        "changed_exact": 0,
+        "compared_evidence_members": 331,
+        "decreased": 0,
+        "increased": 0,
+        "total_delta": "0.00"
+      },
+      "unique_cache_vs_typed_facts": {
+        "after_mean": "60.05",
+        "after_total": "19875.00",
+        "before_mean": "60.05",
+        "before_total": "19875.00",
+        "changed_at_two_decimals": 0,
+        "changed_exact": 0,
+        "compared_evidence_members": 331,
+        "decreased": 0,
+        "increased": 0,
+        "total_delta": "0.00"
+      }
+    },
+    {
+      "cache_groups_with_count_difference": 0,
+      "cache_minus_legacy_fact_counts": {
+        "absent": 0,
+        "dhigh": 0,
+        "dlow": 0,
+        "dmid": 0,
+        "high": 0,
+        "late": 0,
+        "leave": 0,
+        "low": 0,
+        "mid": 0
+      },
+      "cache_rows": 372,
+      "cached_count_totals": {
+        "absent": 15,
+        "dhigh": 2,
+        "dlow": 1,
+        "dmid": 0,
+        "high": 1,
+        "late": 8,
+        "leave": 6,
+        "low": 4,
+        "mid": 29
+      },
+      "duplicate_cache_groups": 0,
+      "evidence_member_count": 372,
+      "legacy_field_fact_count_totals": {
+        "absent": 15,
+        "dhigh": 2,
+        "dlow": 1,
+        "dmid": 0,
+        "high": 1,
+        "late": 8,
+        "leave": 6,
+        "low": 4,
+        "mid": 29
+      },
+      "members_with_cache": 372,
+      "members_with_reports": 58,
+      "month": "2023-10",
+      "report_members_without_cache": 0,
+      "report_rows": 65,
+      "typed_fact_count_totals": {
+        "absent": 15,
+        "dhigh": 1,
+        "dlow": 1,
+        "dmid": 0,
+        "high": 1,
+        "late": 8,
+        "leave": 6,
+        "low": 4,
+        "mid": 29
+      },
+      "unique_cache_vs_retained_legacy_facts": {
+        "after_mean": "60.08",
+        "after_total": "22349.00",
+        "before_mean": "60.08",
+        "before_total": "22349.00",
+        "changed_at_two_decimals": 0,
+        "changed_exact": 0,
+        "compared_evidence_members": 372,
+        "decreased": 0,
+        "increased": 0,
+        "total_delta": "0.00"
+      },
+      "unique_cache_vs_typed_facts": {
+        "after_mean": "60.11",
+        "after_total": "22361.00",
+        "before_mean": "60.08",
+        "before_total": "22349.00",
+        "changed_at_two_decimals": 1,
+        "changed_exact": 1,
+        "compared_evidence_members": 372,
+        "decreased": 0,
+        "increased": 1,
+        "total_delta": "12.00"
+      }
+    }
+  ],
+  "off_type_report_counts_by_activity_kind": {
+    "activity": 1
+  },
+  "overall": {
+    "august_cache_rows": 0,
+    "august_report_rows": 0,
+    "cache_groups_with_count_difference": 0,
+    "duplicate_cache_groups": 0,
+    "months": 2,
+    "natural_terms_with_evidence": 1,
+    "observed_evidence_members_across_all_months": 372,
+    "observed_student_month_groups": 703
+  },
+  "quality": {
+    "cross_class_report_rows": 0,
+    "duplicate_report_groups": 0,
+    "invalid_cache_rows_excluded": 0,
+    "invalid_fact_groups_excluded": 0,
+    "negative_cache_count_cells": 0,
+    "orphan_report_rows": 0,
+    "reports_with_invalid_dates_excluded": 0,
+    "reports_with_off_type_scoring_fields": 1
+  },
+  "read_only": {
+    "query_only": true,
+    "uri_mode": "ro"
+  },
+  "retained_admin_deletion_events": {
+    "activity": {
+      "events": 87,
+      "first_date": "2018-09-19",
+      "last_date": "2021-09-26"
+    },
+    "class": {
+      "events": 24,
+      "first_date": "2018-09-18",
+      "last_date": "2019-02-20"
+    },
+    "report": {
+      "events": 0,
+      "first_date": null,
+      "last_date": null
+    },
+    "student": {
+      "events": 3,
+      "first_date": "2018-10-11",
+      "last_date": "2018-10-11"
+    },
+    "summarycount": {
+      "events": 0,
+      "first_date": null,
+      "last_date": null
+    }
+  },
+  "snapshot_table_counts": {
+    "manage_activity": 76,
+    "manage_class": 13,
+    "manage_report": 128,
+    "manage_student": 660,
+    "manage_summarycount": 703
+  },
+  "status": "candidate_review_only_no_historical_correction_authorized",
+  "terms": [
+    {
+      "candidate_unobserved_member_month_slots_full_term": 1157,
+      "candidate_unobserved_member_month_slots_through_last_evidence": 41,
+      "cohort_basis": "Only IDs with retained cache or report evidence inside this natural term; not an approved historical roster.",
+      "evidence_member_count": 372,
+      "full_natural_term_legacy_fields_vs_typed_fields": {
+        "after_mean": "60.03",
+        "after_total": "22331.20",
+        "before_mean": "60.02",
+        "before_total": "22328.80",
+        "changed_at_two_decimals": 1,
+        "changed_exact": 1,
+        "compared_evidence_members": 372,
+        "decreased": 0,
+        "increased": 1,
+        "total_delta": "2.40"
+      },
+      "last_observed_month": "2023-10",
+      "legacy_current_formula_at_last_observed_month": {
+        "lower_month_inclusive": "2023-09",
+        "selected_cache_rows_outside_this_natural_term": 0,
+        "upper_bound": null,
+        "vs_natural_through_last_evidence": {
+          "after_mean": "60.08",
+          "after_total": "22348.00",
+          "before_mean": "60.05",
+          "before_total": "22339.50",
+          "changed_at_two_decimals": 6,
+          "changed_exact": 6,
+          "compared_evidence_members": 372,
+          "decreased": 0,
+          "increased": 6,
+          "total_delta": "8.50"
+        }
+      },
+      "legacy_stage_cache_vs_candidate_full_natural_term": {
+        "after_mean": "60.03",
+        "after_total": "22331.20",
+        "before_mean": "60.05",
+        "before_total": "22339.50",
+        "changed_at_two_decimals": 85,
+        "changed_exact": 85,
+        "compared_evidence_members": 372,
+        "decreased": 56,
+        "increased": 29,
+        "total_delta": "-8.30"
+      },
+      "legacy_stage_cache_vs_full_natural_term_legacy_fields": {
+        "after_mean": "60.02",
+        "after_total": "22328.80",
+        "before_mean": "60.05",
+        "before_total": "22339.50",
+        "changed_at_two_decimals": 85,
+        "changed_exact": 85,
+        "compared_evidence_members": 372,
+        "decreased": 56,
+        "increased": 29,
+        "total_delta": "-10.70"
+      },
+      "legacy_stage_cache_vs_natural_months_legacy_fields": {
+        "after_mean": "60.06",
+        "after_total": "22342.00",
+        "before_mean": "60.05",
+        "before_total": "22339.50",
+        "changed_at_two_decimals": 5,
+        "changed_exact": 5,
+        "compared_evidence_members": 372,
+        "decreased": 0,
+        "increased": 5,
+        "total_delta": "2.50"
+      },
+      "legacy_stage_cache_vs_natural_through_last_evidence": {
+        "after_mean": "60.08",
+        "after_total": "22348.00",
+        "before_mean": "60.05",
+        "before_total": "22339.50",
+        "changed_at_two_decimals": 6,
+        "changed_exact": 6,
+        "compared_evidence_members": 372,
+        "decreased": 0,
+        "increased": 6,
+        "total_delta": "8.50"
+      },
+      "legacy_stage_cache_vs_same_rows_rebuilt_from_facts": {
+        "after_mean": "60.05",
+        "after_total": "22339.50",
+        "before_mean": "60.05",
+        "before_total": "22339.50",
+        "changed_at_two_decimals": 0,
+        "changed_exact": 0,
+        "compared_evidence_members": 372,
+        "decreased": 0,
+        "increased": 0,
+        "total_delta": "0.00"
+      },
+      "legacy_stage_months": [
+        "2023-09",
+        "2023-10",
+        "2023-11",
+        "2023-12",
+        "2024-01"
+      ],
+      "members_without_legacy_stage_cache": 0,
+      "months_without_any_retained_member_evidence": [
+        "2023-11",
+        "2023-12",
+        "2024-01"
+      ],
+      "natural_months_legacy_fields_vs_typed_fields": {
+        "after_mean": "60.08",
+        "after_total": "22348.00",
+        "before_mean": "60.06",
+        "before_total": "22342.00",
+        "changed_at_two_decimals": 1,
+        "changed_exact": 1,
+        "compared_evidence_members": 372,
+        "decreased": 0,
+        "increased": 1,
+        "total_delta": "6.00"
+      },
+      "natural_months_through_last_evidence": [
+        "2023-09",
+        "2023-10"
+      ],
+      "natural_term_months": [
+        "2023-09",
+        "2023-10",
+        "2023-11",
+        "2023-12",
+        "2024-01"
+      ],
+      "term": "2023-autumn"
+    }
+  ]
+}

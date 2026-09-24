@@ -1,0 +1,55 @@
+{
+  "name": "sqlite_busy_retry_original_key",
+  "synthetic": true,
+  "description": "仅合同：暂时繁忙503，等待Retry-After后原键原内容重试，不能另起一条记录。",
+  "request": {
+    "method": "POST",
+    "path": "/classes/101/records",
+    "headers": {
+      "Authorization": "Bearer SYNTHETIC-NOT-A-CREDENTIAL",
+      "Content-Type": "application/json",
+      "Idempotency-Key": "00000000-0000-4000-8000-000000000001"
+    },
+    "body": {
+      "expected_current_term_key": "2026-autumn",
+      "term_key": "2026-autumn",
+      "roster_revision": 1,
+      "kind": "class",
+      "date": "2026-10-03",
+      "name": "合成专业课点名",
+      "students": [
+        {
+          "id": "201",
+          "value": "late"
+        },
+        {
+          "id": "202",
+          "value": "normal"
+        }
+      ]
+    }
+  },
+  "response": {
+    "status": 503,
+    "headers": {
+      "Content-Type": "application/json",
+      "Retry-After": "2"
+    },
+    "body": {
+      "error": {
+        "code": "database_busy",
+        "message": "数据库暂时繁忙，请稍后重试。",
+        "retryable": true,
+        "fields": [],
+        "retry_after_seconds": 2
+      },
+      "meta": {
+        "request_id": "synthetic-request-001",
+        "business_date": "2026-10-03",
+        "timezone": "Asia/Shanghai",
+        "current_term_key": "2026-autumn",
+        "replayed": false
+      }
+    }
+  }
+}

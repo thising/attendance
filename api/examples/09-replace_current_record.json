@@ -1,0 +1,56 @@
+{
+  "name": "replace_current_record",
+  "synthetic": true,
+  "description": "仅合同：完整替换一次当前学期记录，不能更改kind或学期。",
+  "request": {
+    "method": "PUT",
+    "path": "/classes/101/records/301",
+    "headers": {
+      "Authorization": "Bearer SYNTHETIC-NOT-A-CREDENTIAL",
+      "Content-Type": "application/json",
+      "Idempotency-Key": "00000000-0000-4000-8000-000000000002"
+    },
+    "body": {
+      "expected_current_term_key": "2026-autumn",
+      "term_key": "2026-autumn",
+      "roster_revision": 1,
+      "kind": "class",
+      "date": "2026-10-03",
+      "name": "合成专业课点名修正",
+      "students": [
+        {
+          "id": "201",
+          "value": "absent"
+        },
+        {
+          "id": "202",
+          "value": "normal"
+        }
+      ],
+      "revision": 1
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "result": {
+        "record_id": "301",
+        "record_revision": 2,
+        "term_key": "2026-autumn",
+        "operation": "updated",
+        "state": "active",
+        "affected_students": 2
+      },
+      "meta": {
+        "request_id": "synthetic-request-001",
+        "business_date": "2026-10-03",
+        "timezone": "Asia/Shanghai",
+        "current_term_key": "2026-autumn",
+        "replayed": false
+      }
+    }
+  }
+}

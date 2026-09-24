@@ -1,0 +1,53 @@
+{
+  "name": "get_record",
+  "synthetic": true,
+  "description": "仅合同：详情带记录版本和完整学期名单状态，normal显式返回。",
+  "request": {
+    "method": "GET",
+    "path": "/classes/101/records/301",
+    "headers": {
+      "Authorization": "Bearer SYNTHETIC-NOT-A-CREDENTIAL"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "result": {
+        "record": {
+          "id": "301",
+          "class_id": "101",
+          "term_key": "2026-autumn",
+          "kind": "class",
+          "date": "2026-10-03",
+          "name": "合成专业课点名",
+          "revision": 1,
+          "audit_status": "preview",
+          "read_only": false,
+          "created_at": "2026-10-03T09:00:00+08:00",
+          "updated_at": "2026-10-03T09:00:00+08:00"
+        },
+        "roster_revision": 1,
+        "students": [
+          {
+            "id": "201",
+            "value": "late"
+          },
+          {
+            "id": "202",
+            "value": "normal"
+          }
+        ]
+      },
+      "meta": {
+        "request_id": "synthetic-request-001",
+        "business_date": "2026-10-03",
+        "timezone": "Asia/Shanghai",
+        "current_term_key": "2026-autumn",
+        "replayed": false
+      }
+    }
+  }
+}

@@ -1,0 +1,45 @@
+{% load static %}
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>{{ class_name }} · 笃行公开成绩报告</title>
+  <link rel="icon" href="{% static 'workspace/duxing-bamboo-small.svg' %}" type="image/svg+xml">
+  <link rel="stylesheet" href="{% static 'workspace/public-report.css' %}?v=2">
+</head>
+<body>
+  <main class="report-shell">
+    <header class="report-heading"><img src="{% static 'workspace/duxing-bamboo.svg' %}" alt="" width="48" height="48"><div><span>笃行 · 学生操行管理系统</span><h1>{{ class_name }}</h1><p>{% if term %}{{ term.label }} · 学生操行评分报告{% else %}当前暂无开放学期{% endif %}</p><p class="report-updated">报告更新于 <time datetime="{{ generated_at|date:'c' }}">{{ generated_at|date:'Y-m-d H:i:s' }}</time>（北京时间）</p></div></header>
+    {% if term %}
+    <div class="report-toolbar"><div class="report-controls"><label for="report-period">查看范围 <select id="report-period" aria-label="选择学期汇总或月份">{% for table in tables %}<option value="{{ table.key }}">{{ table.label }}</option>{% endfor %}</select></label><label for="report-sort">排序 <select id="report-sort" aria-label="学生排序方式"><option value="number-asc">学号 ↑</option><option value="number-desc">学号 ↓</option><option value="pinyin-asc">拼音首字母 A–Z</option><option value="pinyin-desc">拼音首字母 Z–A</option></select></label></div><span>仅供查看 · 数据随本学期记录更新</span></div>
+    {% for table in tables %}
+    <section class="report-section" data-report-table="{{ table.key }}" {% if not forloop.first %}hidden{% endif %} aria-label="{{ table.label }}">
+      <div class="table-scroll"><table><thead><tr class="group-row"><th rowspan="2" scope="col">学生</th><th colspan="3" scope="colgroup">考勤</th><th colspan="3" scope="colgroup">活动</th><th colspan="3" scope="colgroup">违纪</th><th rowspan="2" scope="col">{{ table.score_label }}</th></tr><tr><th>缺勤</th><th>迟到</th><th>请假</th><th>班级</th><th>院级</th><th>校级</th><th>轻度</th><th>中度</th><th>严重</th></tr></thead><tbody>
+      {% for row in table.rows %}<tr data-number="{{ row.number }}" data-name="{{ row.name }}"><th scope="row" class="student-cell"><span class="student-name">{{ row.name }}{% if row.sex == 'male' %}<svg class="sex-icon male" viewBox="0 0 24 24" role="img" aria-label="男"><circle cx="9" cy="15" r="5"/><path d="M12.5 11.5 20 4m-5 0h5v5"/></svg>{% elif row.sex == 'female' %}<svg class="sex-icon female" viewBox="0 0 24 24" role="img" aria-label="女"><circle cx="12" cy="9" r="5"/><path d="M12 14v8m-4-4h8"/></svg>{% endif %}</span><span class="student-number">{{ row.number }}</span></th>
+      {% if row.counts %}<td>{{ row.counts.absent }}</td><td>{{ row.counts.late }}</td><td>{{ row.counts.leave }}</td><td>{{ row.counts.low }}</td><td>{{ row.counts.mid }}</td><td>{{ row.counts.high }}</td><td>{{ row.counts.dlow }}</td><td>{{ row.counts.dmid }}</td><td>{{ row.counts.dhigh }}</td><td class="score">{{ row.score|default:'—' }}</td>{% else %}<td colspan="10" class="unknown">本月计分依据待核实</td>{% endif %}</tr>{% empty %}<tr><td colspan="11" class="unknown">当前学期暂无学生</td></tr>{% endfor %}
+      </tbody></table></div><p class="report-note">学生姓名下方为学号。考勤记录显示异常人数；分数以当前学期规则计算。</p>
+    </section>
+    {% endfor %}
+    {% else %}<p class="closed-note">8 月暂停本学期业务展示。进入新学期后，此链接将自动显示新学期数据。</p>{% endif %}
+    <footer>笃行 · 日常有序，成长有迹</footer>
+  </main>
+  <script>
+    document.querySelector('#report-period')?.addEventListener('change', event => {
+      document.querySelectorAll('[data-report-table]').forEach(section => { section.hidden = section.dataset.reportTable !== event.target.value; });
+    });
+    document.querySelector('#report-sort')?.addEventListener('change', event => {
+      const mode=event.target.value, sign=mode.endsWith('desc') ? -1 : 1;
+      const number=new Intl.Collator('zh-CN',{numeric:true,sensitivity:'variant'});
+      const pinyin=new Intl.Collator('zh-CN-u-co-pinyin',{sensitivity:'variant'});
+      document.querySelectorAll('[data-report-table] tbody').forEach(body => {
+        const rows=Array.from(body.querySelectorAll('tr[data-number]'));
+        rows.sort((a,b) => sign*(mode.startsWith('pinyin') ? pinyin.compare(a.dataset.name,b.dataset.name) || number.compare(a.dataset.number,b.dataset.number) : number.compare(a.dataset.number,b.dataset.number)));
+        body.append(...rows);
+      });
+    });
+  </script>
+</body>
+</html>

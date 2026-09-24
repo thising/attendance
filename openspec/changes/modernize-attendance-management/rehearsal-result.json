@@ -1,0 +1,31 @@
+{
+  "original_unchanged": true,
+  "integrity": "ok",
+  "counts": {
+    "manage_class": 13,
+    "manage_student": 660,
+    "manage_activity": 76,
+    "manage_report": 128,
+    "manage_summarycount": 703
+  },
+  "review_gate": {
+    "pending_classes": 13
+  },
+  "hashed_passwords": 13,
+  "dates_preserved": 76,
+  "legacy_months": [
+    [
+      2023,
+      9,
+      331
+    ],
+    [
+      2023,
+      10,
+      372
+    ]
+  ],
+  "unknown_migration_preserved": true,
+  "rollback_integrity": "ok",
+  "rollback_counts_match": true
+}

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">笃行 · 竹节标志</title>
+  <desc id="desc">两竿墨竹、三片竹叶，右侧竹节以朱砂点缀。</desc>
+  <style>
+    .ink{fill:#2a4036}.node{fill:#973c31}
+    @media(prefers-color-scheme:dark){.ink{fill:#d5decb}.node{fill:#eea18b}}
+  </style>
+  <g class="ink">
+    <path d="M44 13Q56 14 68 8Q64 25 66 42Q56 42 48 46Q49 27 44 13Z"/>
+    <path d="M48 51Q57 47 66 47Q64 62 66 78Q56 77 48 81Q50 64 48 51Z"/>
+    <path d="M48 86Q57 82 66 83Q63 101 68 118Q57 114 45 118Q51 100 48 86Z"/>
+    <path d="M77 54Q85 54 93 50Q90 61 92 73Q85 75 77 74Q79 63 77 54Z"/>
+    <path d="M77 87Q85 89 93 86Q90 101 96 115Q85 114 75 118Q80 102 77 87Z"/>
+    <path d="M48 66Q24 52 14 28Q40 37 48 66Z"/>
+    <path d="M48 84Q29 72 10 65Q34 58 48 84Z"/>
+    <path d="M92 93Q96 72 120 61Q111 81 92 93Z"/>
+  </g>
+  <path class="node" d="M76 79Q85 81 94 78L94 82Q85 85 76 83Z"/>
+</svg>

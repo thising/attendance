@@ -1,0 +1,60 @@
+{
+  "name": "invalid_value_for_kind",
+  "synthetic": true,
+  "description": "仅合同：请求故意不符合schema，展示字段级400；整体不写入。",
+  "request": {
+    "method": "POST",
+    "path": "/classes/101/records",
+    "headers": {
+      "Authorization": "Bearer SYNTHETIC-NOT-A-CREDENTIAL",
+      "Content-Type": "application/json",
+      "Idempotency-Key": "00000000-0000-4000-8000-000000000007"
+    },
+    "body": {
+      "expected_current_term_key": "2026-autumn",
+      "term_key": "2026-autumn",
+      "roster_revision": 1,
+      "kind": "class",
+      "date": "2026-10-03",
+      "name": "合成专业课点名",
+      "students": [
+        {
+          "id": "201",
+          "value": "high"
+        },
+        {
+          "id": "202",
+          "value": "normal"
+        }
+      ]
+    }
+  },
+  "response": {
+    "status": 400,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "考勤记录不接受活动等级。",
+        "retryable": false,
+        "fields": [
+          {
+            "path": "/students/0/value",
+            "code": "invalid_choice",
+            "message": "应为normal、late、absent或leave。"
+          }
+        ]
+      },
+      "meta": {
+        "request_id": "synthetic-request-001",
+        "business_date": "2026-10-03",
+        "timezone": "Asia/Shanghai",
+        "current_term_key": "2026-autumn",
+        "replayed": false
+      }
+    }
+  },
+  "request_schema_valid": false
+}

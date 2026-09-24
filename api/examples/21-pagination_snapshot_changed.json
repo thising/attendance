@@ -1,0 +1,38 @@
+{
+  "name": "pagination_snapshot_changed",
+  "synthetic": true,
+  "description": "仅合同：翻页期间名单或规则更新，拒绝拼接不同版本。",
+  "request": {
+    "method": "GET",
+    "path": "/classes/101/summaries",
+    "headers": {
+      "Authorization": "Bearer SYNTHETIC-NOT-A-CREDENTIAL"
+    },
+    "query": {
+      "term_key": "2026-autumn",
+      "limit": 1,
+      "cursor": "synthetic-old-snapshot"
+    }
+  },
+  "response": {
+    "status": 409,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "error": {
+        "code": "pagination_stale",
+        "message": "分页快照已过期，请从第一页重新读取。",
+        "retryable": false,
+        "fields": []
+      },
+      "meta": {
+        "request_id": "synthetic-request-001",
+        "business_date": "2026-10-03",
+        "timezone": "Asia/Shanghai",
+        "current_term_key": "2026-autumn",
+        "replayed": false
+      }
+    }
+  }
+}

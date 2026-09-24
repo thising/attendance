@@ -1,559 +1,486 @@
-# -*- coding:utf-8 -*-
-
-from django.shortcuts import render
-from django.shortcuts import redirect
+"""Authenticated workspace adapters; business writes live in services."""
+import json
+from functools import wraps
 from django.contrib.auth import authenticate, login, logout
-from django.http import HttpResponse
+from django.core.paginator import Paginator
+from django.db import OperationalError, transaction
+from django.db.models import Count, Max, Q
+from django.http import JsonResponse, HttpResponseRedirect, Http404
+from django.shortcuts import render
+from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.http import require_http_methods, require_POST
+from manage.models import Class, Activity, AuditEvent, Student, PublicClassReportLink, WEIGHT_DEFAULTS
+from manage.services import calendar
+from manage.services.access import get_class, actor_for, owner_actor, authorize, committee_actor
+from manage.services.errors import BusinessError
+from manage.services.scoring import class_report, class_top_three, policy_for, roster_for
+from manage.services.records import save_record, record_roster
+from manage.services.roster import change_roster, create_class
+from manage.services.rules import change_rules
+from manage.services.committee import sign_in, manage_accounts, account_list, ACTIVE_LIMIT, login_credentials
+from manage.services.login_guard import check_login
+from django.views.decorators.debug import sensitive_post_parameters, sensitive_variables
+from django.views.decorators.cache import never_cache
+from manage.services import monthly
+from manage.services.public_reports import change_link, link_details, token_digest
+from manage.services.report_snapshots import get_current_report
 
-from datetime import datetime
-from manage.models import *
 
-# import the logging library
-import logging
+def payload(request):
+    if request.content_type=='application/json':
+        try:
+            value=json.loads(request.body)
+            if not isinstance(value,dict):raise ValueError
+            return value
+        except (ValueError,UnicodeDecodeError):raise BusinessError('invalid_json','请求格式无效。')
+    return request.POST.dict()
 
-# Get an instance of a logger
-logger = logging.getLogger(__name__)
 
-# Create your views here.
+def success(data):
+    return JsonResponse({'ok':True,'data':data})
 
-def index(request):
-    class_list = None
-    to_show = None
-    if request.user.is_authenticated:
-        summary_tm = []
-        class_list = Class.objects.filter(owner = request.user)
-        to_show = []
-        line = []
-        for item in class_list:
-            summary_tm += [{"class" : item.id, "summary" : [s.summary_term() for s in item.student_set.all()]}]
-            line += [item]
-            if len(line) == 3:
-                to_show += [line]
-                line = []
-        if len(line) > 0:
-            to_show += [line]
-        return render(request, 'index.html', {"class_list": to_show, "class_count": 0 if class_list is None else len(class_list), "summary_tm":summary_tm})
-    return render(request, 'index.html')
 
-def user_login(request):
-    if request.method == "POST":
-        username = request.POST.get("username", "")
-        password = request.POST.get("password", "")
-        user = authenticate(username = username, password = password)
-        if user is not None:
-            login(request, user)
-            logger.info("用户 <%r> 登录成功", username)
-            return redirect("index.html")
-        else:
-            logger.info("用户 <%r> 登录失败", username)
-            return render(request, "login.html", {"message": "用户名或密码错误"})
+def guarded(fn):
+    @wraps(fn)
+    def wrapped(request,*args,**kwargs):
+        try:return fn(request,*args,**kwargs)
+        except BusinessError as exc:
+            return failure(request,exc)
+        except OperationalError as exc:
+            if 'locked' not in str(exc).lower() and 'busy' not in str(exc).lower():raise
+            return failure(request,BusinessError('database_busy','系统正在处理其他操作，请稍后重试。',503))
+    return wrapped
+
+
+def failure(request,exc):
+    error={'code':exc.code,'message':exc.message,'details':exc.details}
+    if request.method!='GET' or request.GET.get('format')=='json':
+        response=JsonResponse({'ok':False,'error':error},status=exc.status)
     else:
-        return render(request, "login.html")
+        # Error recovery must not acquire another database lock.
+        term=calendar.display_term()
+        data={'classes':[],'classroom':None,'actor':{'role':'anonymous','label':'访客'},
+            'term':{'key':term.key,'label':term.label},'terms':[],'readonly':True,'error':error}
+        response=render(request,'workspace/page.html',{'page':'error','data':data},status=exc.status)
+    if exc.status==503:response['Retry-After']='1'
+    if exc.code=='authorization_rate_limited':response['Retry-After']=str(exc.details.get('retry_after',1800))
+    return response
 
+
+def class_item(c):
+    return {'id':c.pk,'code':c.code,'name':c.classname,'revision':c.revision,'archived':c.archived}
+
+
+def actor_item(actor):
+    return {'role':actor.role,'label':actor.label,'id':actor.user_id,
+            'username':actor.username,'display_name':actor.display_name,'expires_at':actor.expires_at}
+
+
+def common(request,classroom=None,term=None,actor=None):
+    today=calendar.business_today()
+    term=term or calendar.display_term(today)
+    classes=[]
+    identity={'role':'anonymous','label':'访客','id':None,'expires_at':None}
+    if request.user.is_authenticated:
+        classes=list(Class.objects.filter(owner=request.user).order_by('classname','id'))
+        identity=actor_item(owner_actor(request))
+    else:
+        try:
+            account,granted=committee_actor(request)
+            classes=[account.inclass]
+            identity=actor_item(granted)
+        except BusinessError:
+            pass
+    if actor:identity=actor_item(actor)
+    readonly=calendar.term_for_date(today)!=term or bool(classroom and (classroom.archived or classroom.legacy_pending))
+    if today.month==8:reason='8 月暂停业务录入，仅可查看历史数据。'
+    elif classroom and classroom.legacy_pending:reason='旧库迁移基线尚待核对。'
+    elif classroom and classroom.archived:reason='班级已归档，仅可查看。'
+    elif readonly:reason='已结束或未开始学期 · 只读'
+    else:reason=''
+    return {'classes':[class_item(c) for c in classes],'classroom':class_item(classroom) if classroom else None,
+        'actor':identity,'term':{'key':term.key,'label':term.label},'today':today.isoformat(),
+        'start_date':term.start.isoformat(),'readonly':readonly,'historical':term.end <= today,'readonly_reason':reason,
+        'readonly_label':'数据待核实' if classroom and classroom.legacy_pending else '班级已归档' if classroom and classroom.archived else '历史快照 · 只读' if term.end <= today else '非当前学期 · 只读',
+        'terms':term_options(classroom,today),'user_label':identity.get('username',''),
+        'login_role':'committee' if request.GET.get('role')=='committee' else 'owner'}
+
+
+def class_metrics(classroom,student_count,term,report=None):
+    if term.end <= calendar.business_today():
+        activities = (report or class_report(classroom,term)).get('activities')
+        if activities is None:
+            return {'student_count':student_count,'activity_count':None,'last_activity_at':None,
+                    'records_unavailable':True}
+        return {'student_count':student_count,'activity_count':len(activities),
+                'last_activity_at':max((a['time'] for a in activities),default=None)}
+    stats=classroom.activity_set.filter(occurred_on__gte=term.start,occurred_on__lt=term.end).aggregate(
+        activity_count=Count('id'),last_activity_at=Max('time'))
+    stats['last_activity_at']=stats['last_activity_at'].isoformat(timespec='seconds') if stats['last_activity_at'] else None
+    return {'student_count':student_count,**stats}
+
+
+def term_options(classroom,today):
+    term=calendar.display_term(today)
+    start=calendar.term_for_date(classroom.started_on) if classroom else calendar.previous_term(term)
+    start=start or calendar.display_term(today)
+    result=[]
+    while term.start>=start.start and len(result)<80:
+        result.append({'key':term.key,'label':term.label,'readonly':calendar.term_for_date(today)!=term})
+        term=calendar.previous_term(term)
+    return result
+
+
+def selected_term(request):
+    key=request.GET.get('term')
+    return calendar.parse_term(key) if key else calendar.display_term()
+
+
+def page(request,name,data,status=200):
+    if request.GET.get('format')=='json':return success(data)
+    return render(request,'workspace/page.html',{'page':name,'data':data},status=status)
+
+
+def class_context(request,code,owner_only=False,term=None):
+    classroom=get_class(code)
+    try:actor=actor_for(request,classroom,owner_only)
+    except BusinessError as exc:
+        if exc.status==401 and not owner_only and request.method=='GET' and request.GET.get('format')!='json':
+            data=common(request)
+            data['classroom']=None
+            data['classes']=[]
+            data['actor']={'role':'anonymous','label':'访客','expires_at':None}
+            return classroom,None,page(request,'login',data)
+        raise
+    return classroom,actor,common(request,classroom,term or selected_term(request),actor)
+
+
+def record_item(activity):
+    return {'id':activity.pk,'name':activity.name,'details':activity.details,'kind':activity.activity_type,'date':activity.occurred_on.isoformat(),
+            'revision':activity.revision,'status':activity.status,'student_count':getattr(activity,'student_count',None),
+            'url':f'/classes/{activity.inclass.code}/records/{activity.pk}/'}
+
+
+def counted_records(query, weights):
+    positive_activity=[key for key in ('low','mid','high') if float(weights.get(key,0))>0]
+    positive_discipline=[key[1:] for key in ('dlow','dmid','dhigh') if float(weights.get(key,0))>0]
+    included=(Q(activity_type='class',report__status__in=('absent','late','leave')) |
+              Q(activity_type='activity',report__level__in=positive_activity) |
+              Q(activity_type='discipline',report__discipline__in=positive_discipline))
+    return query.annotate(student_count=Count('report',filter=included)).order_by('-occurred_on','-id')
+
+
+def archived_record_count(record, weights):
+    values=record.get('student_values',{}).values()
+    kind=record.get('kind')
+    if kind=='class':return sum(value in ('absent','late','leave') for value in values)
+    if kind=='activity':return sum(value in ('low','mid','high') and float(weights.get(value,0))>0 for value in values)
+    return sum(value in ('dlow','dmid','dhigh') and float(weights.get(value,0))>0 for value in values)
+
+
+@ensure_csrf_cookie
+@guarded
+@require_http_methods(['GET','POST'])
+@transaction.atomic
+def index(request):
+    if request.method=='POST':return success(create_class(request,payload(request)))
+    term=selected_term(request)
+    data=common(request,term=term)
+    if data['actor']['role']=='anonymous':
+        return page(request,'login',data)
+    data['class_summaries']=[]
+    data['dashboard_students']=[]
+    for item in data['classes']:
+        c=get_class(item['code'])
+        if c.legacy_pending:
+            data['class_summaries'].append({**item,'pending':True})
+        else:
+            report=class_report(c,term)
+            data['class_summaries'].append({**item,**class_metrics(c,report['summary']['student_count'],term,report)})
+            data['dashboard_students'].extend({**row,'class_id':c.pk,'class_name':c.classname,'class_code':c.code,
+                'score_base':monthly.score_base(report),
+                'average_decimal_places':report.get('policy',{}).get('average_decimal_places',2)}
+                for row in report['rows'])
+    return page(request,'dashboard',data)
+
+
+@ensure_csrf_cookie
+@guarded
+@require_http_methods(['GET','POST'])
+@sensitive_post_parameters('password')
+@sensitive_variables()
+def user_login(request):
+    if request.method=='POST':
+        data=payload(request)
+        role=data.get('role','owner')
+        if role=='committee':return success(sign_in(request,data))
+        if role!='owner':raise BusinessError('invalid_login_role','请选择班主任或班委登录。')
+        username,password=data.get('username'),data.get('password')
+        if not isinstance(username,str) or not isinstance(password,str) or len(username)>150 or len(password)>128:
+            raise BusinessError('invalid_credentials','用户名或密码错误。',401)
+        user=check_login('owner',username,lambda:authenticate(request,username=username,password=password))
+        request.session.pop('committee_auth',None)
+        request.session.pop('class_grants',None)
+        login(request,user)
+        return success({'url':'/'})
+    return page(request,'login',common(request))
+
+
+@guarded
+@require_POST
 def user_logout(request):
     logout(request)
-    return redirect("index.html")
+    return success({'url':'/'})
 
-def class_info(request):
-    is_owner = False
-    activities = None
-    summary = []
-    summary_last_month = []
 
-    classcode = request.GET.get("classcode", "")
-    current_class = Class.objects.get(sharecode = classcode)
-    if current_class is not None:
-        today = datetime.now()
-        logger.info("用户 <%r> 访问班级 <%r>", request.user.username, current_class)
-        if request.user.is_authenticated and current_class.owner == request.user:
-            is_owner = True
-            # activities = Activity.objects.filter(inclass = current_class, status = "preview")
-            activities = current_class.activity_set.all()
-            students = Student.objects.filter(inclass = current_class)
-            for student in students:
-                item = student.summary_current_month()
-                if item:
-                    summary += [item]
-                item_lm = student.summary_last_month()
-                if item_lm:
-                    summary_last_month += [item_lm]
+@guarded
+@require_POST
+def class_authorize(request,code):
+    raise BusinessError('legacy_authorization_retired','共享班级授权已停用，请使用班委账号登录。',410)
 
-        activities_today = current_class.activity_set.filter(time__gt = datetime(today.year, today.month, today.day))
 
-        return render(request, "class.html", {
-                "class": current_class,
-                "is_owner": is_owner,
-                "activities": None if activities is None else activities[len(activities_today):30],
-                "activities_today": activities_today,
-                "summary": summary,
-                "summary_lm": summary_last_month,
-                "today": today,
-            })    
+@ensure_csrf_cookie
+@guarded
+@require_http_methods(['GET'])
+@transaction.atomic
+def class_info(request,code):
+    classroom,actor,data=class_context(request,code)
+    if actor is None:return data
+    term=selected_term(request)
+    report=class_report(classroom,term)
+    data.update(students=report['rows'],top_three=class_top_three(report['rows']),
+        summary=class_metrics(classroom,report['summary']['student_count'],term,report),
+        policy=report['policy'],monthly_overview=monthly.term_monthly_overview(classroom,term,report=report))
+    data['public_report']=link_details(request,classroom)
+    kind=request.GET.get('kind','')
+    if term.end <= calendar.business_today():
+        data['records_unavailable']='activities' not in report
+        records=[{**record,'student_count':archived_record_count(record,report['policy']['weights'])}
+                 for record in report.get('activities',[])]
+        if kind in ('class','activity','discipline'):records=[r for r in records if r['kind']==kind]
     else:
-        return redirect("index.html")
+        records=counted_records(classroom.activity_set.select_related('inclass').filter(
+            occurred_on__gte=term.start,occurred_on__lt=term.end),report['policy']['weights'])
+        if kind in ('class','activity','discipline'):records=records.filter(activity_type=kind)
+    listing=Paginator(records,30).get_page(request.GET.get('page',1))
+    data['records']=list(listing) if term.end <= calendar.business_today() else [record_item(r) for r in listing]
+    data['pagination']={'page':listing.number,'pages':listing.paginator.num_pages,'count':listing.paginator.count}
+    return page(request,'class',data)
 
-def student_term_reports(request):
-    is_owner = False
-    sid = request.GET.get("student", "")
-    student = Student.objects.get(id = sid)
-    if student is not None:
-        if request.user.is_authenticated and student.inclass.owner == request.user:
-            is_owner = True
-            return render(request, "student_term_reports.html", {"class": student.inclass, "last_term": False, "name": student.name, "reports" : student.report_term()})
-    return render(request, "student_term_reports.html", {"name": "数据错误", "reports" : [("数据查询失败", "数据查询失败", "数据查询失败")]})
 
-def student_last_term_reports(request):
-    is_owner = False
-    sid = request.GET.get("student", "")
-    student = Student.objects.get(id = sid)
-    if student is not None:
-        if request.user.is_authenticated and student.inclass.owner == request.user:
-            is_owner = True
-            return render(request, "student_term_reports.html", {"last_term": True, "name": student.name, "reports" : student.report_term_last()})
-    return render(request, "student_term_reports.html", {"name": "数据错误", "reports" : [("数据查询失败", "数据查询失败", "数据查询失败")]})
-
-def update_class(request):
-    if request.user.is_authenticated:
-        classcode = request.POST.get("classcode", "")
-        managecode = request.POST.get("managecode", "")
-        current_class = Class.objects.get(sharecode = classcode)
-        if current_class is not None and current_class.owner == request.user:
-            logger.info("用户 <%r> 更改班级 <%r> 的管理密码", request.user.username, current_class)
-            current_class.managecode = managecode
-            current_class.save()
-
-    return redirect("class.html?classcode=%s" % classcode)
-
-def create_activity(request):
-    classcode = request.POST.get("classcode", "")
-    current_class = Class.objects.get(sharecode = classcode)
-    if current_class is not None:
-        managecode = request.POST.get("managecode", "")
-        today = datetime.now()
-        today_count = current_class.activity_set.all().filter(time__gt = datetime(today.year, today.month, today.day)).count()
-        if (managecode == current_class.managecode and today_count < 30) or (request.user.is_authenticated and current_class.owner == request.user):
-            return render(request, "create_activity.html", {
-                    "students": current_class.student_set.all(),
-                    "class": current_class,
-                })
-    return redirect("class.html?classcode=%s" % classcode)
-
-def save_activity(request):
-    # TODO: 2022-02-18 Kyle
-    # 短时间多次提交的重复判断
-    classcode = request.POST.get("classcode", "")
-    current_class = Class.objects.get(sharecode = classcode)
-    if current_class is not None:
-        activity_type = request.POST.get("type", "")
-        activity = Activity(
-                activity_type = activity_type,
-                name = request.POST.get("name", ""),
-                inclass = current_class
-            )
-        logger.info("用户 <%r> 为班级 <%r> 创建活动 <%r>", request.user.username, current_class.classname, activity.name)
-        activity.save()
-        # students = Student.objects.filter(inclass = current_class)
-        students = current_class.student_set.all()
-        for student in students:
-            report = None
-            if activity_type == "class":
-                status = request.POST.get("scid_%d" % student.id, None)
-                if status and status != "present":
-                    report = Report(
-                            activity = activity,
-                            student = student,
-                            status = status
-                        )
-            elif activity_type == "activity":
-                level = request.POST.get("said_%d" % student.id, None)
-                if level and level != "none":
-                    report = Report(
-                            activity = activity,
-                            student = student,
-                            level = level
-                        )
-            else:
-                discipline = request.POST.get("sdid_%d" % student.id, None)
-                if discipline and discipline != "none":
-                    report = Report(
-                            activity = activity,
-                            student = student,
-                            discipline = discipline
-                        )
-                pass
-            if report:
-                report.save()
-
-    return redirect("class.html?classcode=%s" % classcode)
-
-def review_activity(request):
-    classcode = request.POST.get("classcode", "")
-    current_class = Class.objects.get(sharecode = classcode)
-
-    aid = request.POST.get("aid", "")
-    activity = Activity.objects.get(id = aid)
-
-    is_owner = False
-    if request.user.is_authenticated and current_class.owner == request.user:
-            is_owner = True
-
-    if current_class is not None and activity is not None:
-        to_show = []
-        students = current_class.student_set.all()
-        for student in students:
-            status = "present"
-            level = "none"
-            discipline = "none"
-            report = None
-
-            try:
-                report = Report.objects.get(activity = activity, student = student)
-            except Exception as e:
-                report = None
-            
-            if report:
-                if activity.activity_type == 'class':
-                    status = report.status
-                elif activity.activity_type == 'activity':
-                    level = report.level
-                else:
-                    discipline = report.discipline
-
-            to_show += [(
-                    student.id,
-                    student.number,
-                    student.name,
-                    student.get_sex_display(),
-                    status,
-                    level,
-                    discipline
-                )]
-
-        return render(request, "review_activity.html", {
-                "class": current_class,
-                "is_owner": is_owner,
-                "activity": activity,
-                "is_class": activity.activity_type == 'class',
-                "is_activity": activity.activity_type == 'activity',
-                "is_discipline": activity.activity_type == 'discipline',
-                "students": to_show,
-            })
-    return redirect("class.html?classcode=%s" % classcode)
-
-def remove_activity(request):
-    classcode = request.POST.get("classcode", "")
-    current_class = Class.objects.get(sharecode = classcode)
-
-    aid = request.POST.get("aid", "")
-    activity = Activity.objects.get(id = aid)
-
-    is_owner = False
-    if request.user.is_authenticated and current_class.owner == request.user:
-        is_owner = True
-
-    if current_class is not None and activity is not None:
-        logger.info("用户 <%r> 开始删除班级 <%r> 中的活动 <%r><%r> !!!", request.user.username, current_class.classname, aid, activity.name)
-
-        reports = Report.objects.filter(activity = activity)
-        for r in reports:
-            r.delete()
-
-        activity.delete()
-
-    return redirect("class.html?classcode=%s" % classcode)
-
-def release_activity(request):
-    classcode = request.POST.get("classcode", "")
-    current_class = Class.objects.get(sharecode = classcode)
-
-    managecode = None
-    is_owner = False
-    if request.user.is_authenticated and current_class.owner == request.user:
-        is_owner = True
+@ensure_csrf_cookie
+@guarded
+@require_http_methods(['GET','POST'])
+@transaction.atomic
+def record_page(request,code,record_id=None):
+    if request.method=='POST':return success(save_record(request,code,payload(request),record_id))
+    classroom,actor,data=class_context(request,code)
+    if actor is None:return data
+    activity=None
+    archived=None
+    archive_term=None
+    if record_id:
+        if request.GET.get('term'):
+            candidate=selected_term(request)
+            if candidate.end <= calendar.business_today():
+                historical=class_report(classroom,candidate)
+                archived=next((a for a in historical.get('activities',[]) if a['id']==record_id),None)
+                if archived:archive_term=candidate
+        if archived is None:
+            from manage.models import ClassTerm
+            for snapshot in ClassTerm.objects.filter(inclass=classroom,archived_data__isnull=False):
+                candidate=calendar.parse_term(snapshot.term_key)
+                if candidate.end > calendar.business_today():continue
+                archived=next((a for a in snapshot.archived_data.get('activities',[]) if a['id']==record_id),None)
+                if archived:
+                    archive_term=candidate
+                    break
+        if archived is None:
+            try:activity=Activity.objects.get(pk=record_id,inclass=classroom)
+            except Activity.DoesNotExist:raise BusinessError('not_found','记录不存在或不属于本班。',404)
+    term=archive_term or (calendar.term_for_date(activity.occurred_on) if activity else calendar.display_term())
+    term=term or calendar.display_term()
+    data=common(request,classroom,term,actor)
+    if classroom.legacy_pending:raise BusinessError('legacy_baseline_pending','旧库记录尚待迁移核对。',409)
+    if term.end <= calendar.business_today() and record_id:
+        report=class_report(classroom,term)
+        archived=next((a for a in report.get('activities',[]) if a['id']==record_id),None)
+        if archived is None:
+            raise BusinessError('historical_record_unavailable','该记录尚无经核实的历史快照。',409)
+        students=report.get('record_roster',report['rows'])
+        values={r['id']:(archived['student_values'].get(str(r['id'])) or 'normal') for r in students}
+        record=archived
     else:
-        managecode = request.POST.get("managecode", "")
+        students=record_roster(classroom,term,activity)
+        values={r['id']:'normal' for r in students}
+        if activity:
+            for r in activity.report_set.all():
+                values[r.student_id]=r.status if activity.activity_type=='class' else r.level if activity.activity_type=='activity' else 'd'+r.discipline
+                if values[r.student_id] in ('present','none','dnone'):values[r.student_id]='normal'
+        record=record_item(activity) if activity else {'id':None,'kind':'class','name':'','details':'','date':data['today'],'revision':0}
+    data['students']=students
+    data['record']={**record,
+        'students':[{'id':sid,'value':value} for sid,value in values.items()]}
+    return page(request,'record',data)
 
-    aid = request.POST.get("aid", "")
-    activity = Activity.objects.get(id = aid)
 
-    if is_owner or managecode == current_class.managecode:
-        logger.info("用户 <%r> 为班级 <%r> 修改活动 <%r>", request.user.username, current_class.classname, activity.name)
-        if current_class is not None and activity is not None:
-            activity.name = request.POST.get("name", "")
-            if is_owner:
-                activity.status = "release"
-            activity.save()
-
-            students = current_class.student_set.all()
-            for student in students:
-                report = None
-                
-                try:
-                    report = Report.objects.get(activity = activity, student = student)
-                except Exception as e:
-                    report = None
-
-                if activity.activity_type == "class":
-                    status = request.POST.get("scid_%d" % student.id, None)
-                    if status:
-                        if report:
-                            if status != "present":
-                                report.status = status
-                            else:
-                                report.delete()
-                                report = None
-                        elif status != "present":
-                            report = Report(
-                                activity = activity,
-                                student = student,
-                                status = status
-                                )
-                        else:
-                            pass
-                elif activity.activity_type == "activity":
-                    level = request.POST.get("said_%d" % student.id, None)
-                    if level:
-                        if report:
-                            if level != "none":
-                                report.level = level
-                            else:
-                                report.delete()
-                                report = None
-                        elif level != "none":
-                            report = Report(
-                                activity = activity,
-                                student = student,
-                                level = level
-                                )
-                        else:
-                            pass
-                else:
-                    discipline = request.POST.get("sdid_%d" % student.id, None)
-                    if discipline:
-                        if report:
-                            if discipline != "none":
-                                report.discipline = discipline
-                            else:
-                                report.delete()
-                                report = None
-                        elif discipline != "none":
-                            report = Report(
-                                activity = activity,
-                                student = student,
-                                discipline = discipline
-                                )
-                        else:
-                            pass
-
-                if report:
-                    report.save()
-
-        return redirect("class.html?classcode=%s" % classcode)
-
-    if current_class is not None and activity is not None:
-        to_show = []
-        students = current_class.student_set.all()
-        for student in students:
-            status = "present"
-            level = "none"
-            discipline = "none"
-            report = None
-            
-            try:
-                report = Report.objects.get(activity = activity, student = student)
-            except Exception as e:
-                report = None
-
-            if report:
-                if activity.activity_type == "class":
-                    status = report.status
-                elif activity.activity_type == "activity":
-                    level = report.level
-                else:
-                    discipline = report.discipline
-
-            to_show += [(
-                    student.id,
-                    student.number,
-                    student.name,
-                    student.get_sex_display(),
-                    status,
-                    level,
-                    discipline
-                )]
-
-        return render(request, "review_activity.html", {
-                "class": current_class,
-                "is_owner": is_owner,
-                "activity": activity,
-                "is_class": activity.activity_type == "class",
-                "is_activity": activity.activity_type == "activity",
-                "is_discipline": activity.activity_type == "discipline",
-                "students": to_show,
-                "message": "保存失败",
-            })
-
-def clear_history(request):
-    classcode = request.POST.get("classcode", "")
-    current_class = Class.objects.get(sharecode = classcode)
-    if current_class is not None:
-        if request.user.is_authenticated and current_class.owner == request.user:
-            logger.info("用户 <%r> 开始在班级 <%r> 中清除历史!!!", request.user.username, current_class.classname)
-            students = Student.objects.filter(inclass = current_class)
-            for s in students:
-                # remove reports
-                records = Report.objects.filter(student = s)
-                for i in records:
-                    i.delete()
-
-                #remove summary count
-                records = SummaryCount.objects.filter(student = s)
-                for i in records:
-                    i.delete()
-
-                # remove students
-                # s.delete()
-
-            # remove activities
-            records = Activity.objects.filter(inclass = current_class)
-            for i in records:
-                i.delete()
-
-    return redirect("class.html?classcode=%s" % classcode)
-
-def remove_class(request):
-    classcode = request.POST.get("classcode", "")
-    current_class = Class.objects.get(sharecode = classcode)
-    if current_class is not None:
-        if request.user.is_authenticated and current_class.owner == request.user:
-            logger.info("用户 <%r> 开始删除班级 <%r> !!!", request.user.username, current_class.classname)
-            students = Student.objects.filter(inclass = current_class)
-            for s in students:
-                # remove reports
-                records = Report.objects.filter(student = s)
-                for i in records:
-                    i.delete()
-
-                #remove summary count
-                records = SummaryCount.objects.filter(student = s)
-                for i in records:
-                    i.delete()
-
-                # remove students
-                s.delete()
-
-            # remove activities
-            records = Activity.objects.filter(inclass = current_class)
-            for i in records:
-                i.delete()
-
-            # remove classes
-            current_class.delete()
-
-    return redirect("index.html")
-
-def add_class(request):
-    classname = request.POST.get("classname", "")
-    try:
-        inclass = Class.objects.get(classname = classname)
-    except Exception as e:
-        inclass = None
-    
-    if inclass is None:
-        if request.user.is_authenticated:
-            inclass = Class(classname = classname, managecode = "", owner = request.user)
-
-            if inclass:
-                logger.info("用户 <%r> 开始创建班级 <%r> !!!", request.user.username, inclass.classname)
-                inclass.save()
-
-    return redirect("index.html")
-
-def last_term_summary(request):
-    class_list = None
-    if request.user.is_authenticated:
-        summary_tm = []
-        class_list = Class.objects.filter(owner = request.user)
-        for item in class_list:
-            summary_tm += [{"class" : item.id, "summary" : [s.summary_term_last() for s in item.student_set.all()]}]
-        return render(request, 'summary-last-term.html', {"summary_tm":summary_tm})
-
-    return render(request, 'summary-last-term.html')
-
-def students(request):
-    is_owner = False
-    students = None
-    classcode = request.GET.get("classcode", "")
-    current_class = Class.objects.get(sharecode = classcode)
-    if current_class is not None:
-        if request.user.is_authenticated and current_class.owner == request.user:
-            is_owner = True
-            students = Student.objects.filter(inclass = current_class)
-
-        return render(request, "students.html", {
-                "class": current_class,
-                "is_owner": is_owner,
-                "students": students,
-            })    
+@ensure_csrf_cookie
+@guarded
+@require_http_methods(['GET'])
+@transaction.atomic
+def student_detail(request,code,student_id):
+    classroom,actor,data=class_context(request,code)
+    if actor is None:return data
+    term=selected_term(request)
+    month_start=monthly.selected_month(request.GET['month'],term) if 'month' in request.GET else None
+    report=class_report(classroom,term)
+    student=next((s for s in report['rows'] if s['id']==student_id),None)
+    if student is None:raise BusinessError('not_found','该学期名单中没有此学生。',404)
+    data['student']=student
+    data['months']=student.get('months',[])
+    data['policy']=report['policy']
+    data['selected_month']=monthly.student_month(classroom,student_id,month_start,report) if month_start else None
+    data['term_detail_url']=f'/classes/{classroom.code}/students/{student_id}/?term={term.key}'
+    historical=term.end <= calendar.business_today()
+    if historical:
+        data['records_unavailable']='activities' not in report
+        records=[{**a,'value':a['student_values'][str(student_id)]} for a in report.get('activities',[])
+                 if str(student_id) in a['student_values']
+                 and (not month_start or month_start.isoformat()<=a['date']<monthly.next_month(month_start).isoformat())]
     else:
-        return redirect("index.html")
+        records=classroom.activity_set.select_related('inclass').filter(report__student_id=student_id,
+            occurred_on__gte=month_start or term.start,
+            occurred_on__lt=monthly.next_month(month_start) if month_start else term.end)
+    listing=Paginator(records,30).get_page(request.GET.get('page',1))
+    if historical:
+        data['records']=list(listing)
+    else:
+        student_values={r.activity_id:r for r in Student.objects.get(pk=student_id).report_set.filter(activity_id__in=[a.pk for a in listing])}
+        data['records']=[]
+        for a in listing:
+            fact=student_values[a.pk]
+            value=fact.status if a.activity_type=='class' else fact.level if a.activity_type=='activity' else 'd'+fact.discipline
+            data['records'].append({**record_item(a),'value':value})
+    data['pagination']={'page':listing.number,'pages':listing.paginator.num_pages,'count':listing.paginator.count}
+    return page(request,'student',data)
 
-def remove_students(request):
-    classcode = request.POST.get("classcode", "")
-    current_class = Class.objects.get(sharecode = classcode)
-    if current_class is not None:
-        if request.user.is_authenticated and current_class.owner == request.user:
-            logger.info("用户 <%r> 开始在班级 <%r> 中删除学生:", request.user.username, current_class.classname)
-            students = current_class.student_set.all()
-            for student in students:
-                status = request.POST.get("sid_%d" % student.id, None)
-                if status:
-                    logger.info("--> Remove %r", student)
-                    records = student.report_set.all()
-                    for i in records:
-                        i.delete()
 
-                    records = student.summarycount_set.all()
-                    for i in records:
-                        i.delete()
-                    
-                    student.delete()
+@ensure_csrf_cookie
+@guarded
+@require_http_methods(['GET','POST'])
+@transaction.atomic
+def roster_page(request,code):
+    if request.method=='POST':return success(change_roster(request,code,payload(request)))
+    classroom,actor,data=class_context(request,code,owner_only=True)
+    term=selected_term(request)
+    data['students']=class_report(classroom,term)['rows'] if term.end <= calendar.business_today() else roster_for(classroom,term)
+    data['committee_accounts']=account_list(classroom)
+    data['committee_limit']=ACTIVE_LIMIT
+    data['committee_prefix']=classroom.committee_prefix
+    return page(request,'roster',data)
 
-    return redirect("students.html?classcode=%s" % classcode)
 
-def add_students(request):
-    classcode = request.POST.get("classcode", "")
-    current_class = Class.objects.get(sharecode = classcode)
-    if current_class is not None:
-        if request.user.is_authenticated and current_class.owner == request.user:
-            logger.info("用户 <%r> 开始在班级 <%r> 中添加学生:", request.user.username, current_class.classname)
-            buf = request.POST.get("students-text", "")
-            records = buf.split("\n")
-            for i in records:
-                cols = i.strip().split("|")
-                if len(cols) >= 3:
-                    number = cols[0].strip()
-                    name = cols[1].strip()
-                    sex = cols[2].strip()
-                    sex = 'male' if (sex == '男' or sex == 'male') else 'female'
-                    
-                    try:
-                        stu = Student.objects.get(inclass = current_class, number = number)
-                    except Exception as e:
-                        stu = None
-                    
-                    if stu is None:
-                        try:
-                            stu = Student(inclass = current_class, number = number, name = name, sex = sex)
-                            stu.save()
-                            logger.info("--> Added: %r, %r", number, name)
-                        except Exception as e:
-                            logger.error(e)
-                        else:
-                            pass
-                        finally:
-                            pass
-                    else:
-                        logger.info("xxx Ignore duplicated: %r, %r", number, name)
+@guarded
+@require_http_methods(['GET','POST'])
+@sensitive_post_parameters('password')
+@sensitive_variables()
+def committee_accounts(request,code):
+    if request.method=='POST':return success(manage_accounts(request,code,payload(request)))
+    classroom=get_class(code)
+    actor_for(request,classroom,owner_only=True)
+    return success({'accounts':account_list(classroom),'limit':ACTIVE_LIMIT,'prefix':classroom.committee_prefix})
 
-    return redirect("students.html?classcode=%s" % classcode)
+
+@never_cache
+@guarded
+@require_POST
+@sensitive_variables()
+def committee_credentials(request,code):
+    return success(login_credentials(request,code,payload(request)))
+
+
+@guarded
+@require_POST
+def import_students(request,code):
+    from manage.services.student_import import parse_student_workbook
+    classroom=get_class(code)
+    actor_for(request,classroom,owner_only=True)
+    # Refuse August/history/stale rosters before parsing an uploaded workbook.
+    from manage.services.access import require_ready
+    from manage.services.writes import require_revision
+    require_ready(classroom)
+    calendar.writable_term(request.POST.get('term_key'))
+    try:revision=int(request.POST.get('revision',''))
+    except (ValueError,TypeError):raise BusinessError('invalid_revision','名单版本无效。')
+    require_revision(classroom.revision,revision)
+    parsed=parse_student_workbook(request.FILES.get('file'))
+    preview=change_roster(request,code,{'action':'preview_add','students_text':parsed['students_text'],
+        'term_key':request.POST.get('term_key'),'revision':revision})
+    return success({**preview,'students_text':parsed['students_text']})
+
+
+@ensure_csrf_cookie
+@guarded
+@require_http_methods(['GET','POST'])
+@transaction.atomic
+def rules_page(request):
+    actor=owner_actor(request)
+    if request.method=='POST':return success(change_rules(request,payload(request)))
+    term=selected_term(request)
+    data=common(request,term=term,actor=actor)
+    data['policy']=policy_for(actor.user_id,term)
+    return page(request,'rules',data)
+
+
+@ensure_csrf_cookie
+@guarded
+@require_http_methods(['GET'])
+@transaction.atomic
+def events_page(request,code):
+    classroom,actor,data=class_context(request,code,owner_only=True)
+    query=AuditEvent.objects.filter(inclass=classroom)
+    kind=request.GET.get('kind')
+    if kind:query=query.filter(kind=kind)
+    listing=Paginator(query,30).get_page(request.GET.get('page',1))
+    data['events']=[{'id':e.pk,'time':e.created_at.isoformat(timespec='seconds'),'actor_label':(('班主任' if e.actor_role=='owner' else '班委') + (' · '+e.actor_label if e.actor_label else '（旧共享授权）' if e.actor_role=='committee' else '')),
+        'actor_id':e.actor_id,
+        'kind':e.kind,'summary':e.summary,'affected_count':e.affected_count,'source':'网页','revision':e.revision} for e in listing]
+    data['pagination']={'page':listing.number,'pages':listing.paginator.num_pages,'count':listing.paginator.count}
+    return page(request,'events',data)
+
+
+@never_cache
+@guarded
+@require_http_methods(['GET','POST'])
+def public_report_settings(request,code):
+    classroom=get_class(code)
+    actor_for(request,classroom)
+    if request.method=='POST':return success(change_link(request,classroom,payload(request).get('action')))
+    return success(link_details(request,classroom))
+
+
+@never_cache
+@guarded
+@require_http_methods(['GET'])
+def public_report(request,token):
+    # The URL itself is the only credential. Never accept a class or term selector.
+    if len(token)!=43 or not all(char.isalnum() or char in '-_' for char in token):
+        raise Http404
+    link=PublicClassReportLink.objects.select_related('inclass').filter(token_digest=token_digest(token),active=True).first()
+    if not link:
+        raise Http404
+    snapshot=get_current_report(link.inclass)
+    response=render(request,'workspace/public_report.html',{
+        **snapshot.payload, 'generated_at':snapshot.generated_at})
+    response['Cache-Control']='no-store, private'
+    response['Referrer-Policy']='no-referrer'
+    response['X-Robots-Tag']='noindex, nofollow, noarchive'
+    return response
+
+
+@guarded
+@require_http_methods(['GET','POST'])
+def legacy_endpoint(request):
+    if request.method=='POST':
+        raise BusinessError('legacy_endpoint_retired','旧版写入入口已停用，请刷新并使用新版工作台。',410)
+    return HttpResponseRedirect('/')

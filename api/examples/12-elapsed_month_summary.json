@@ -1,0 +1,155 @@
+{
+  "name": "elapsed_month_summary",
+  "synthetic": true,
+  "description": "仅合同：独立合成汇总场景；10月无活动也有60分，未来月份不提前入账。",
+  "request": {
+    "method": "GET",
+    "path": "/classes/101/summaries",
+    "headers": {
+      "Authorization": "Bearer SYNTHETIC-NOT-A-CREDENTIAL"
+    },
+    "query": {
+      "term_key": "2026-autumn",
+      "limit": 50
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "result": [
+        {
+          "student": {
+            "id": "201",
+            "membership_id": "501",
+            "number": "SYN001",
+            "name": "示例甲"
+          },
+          "months": [
+            {
+              "month": "2026-09",
+              "counts": {
+                "absent": 1,
+                "late": 0,
+                "leave": 0,
+                "low": 0,
+                "mid": 0,
+                "high": 0,
+                "dlow": 0,
+                "dmid": 0,
+                "dhigh": 0
+              },
+              "score": "58.00"
+            },
+            {
+              "month": "2026-10",
+              "counts": {
+                "absent": 0,
+                "late": 0,
+                "leave": 0,
+                "low": 0,
+                "mid": 0,
+                "high": 0,
+                "dlow": 0,
+                "dmid": 0,
+                "dhigh": 0
+              },
+              "score": "60.00"
+            }
+          ],
+          "term_score": "59.00"
+        },
+        {
+          "student": {
+            "id": "202",
+            "membership_id": "502",
+            "number": "SYN002",
+            "name": "示例乙"
+          },
+          "months": [
+            {
+              "month": "2026-09",
+              "counts": {
+                "absent": 0,
+                "late": 1,
+                "leave": 0,
+                "low": 0,
+                "mid": 0,
+                "high": 0,
+                "dlow": 0,
+                "dmid": 0,
+                "dhigh": 0
+              },
+              "score": "58.50"
+            },
+            {
+              "month": "2026-10",
+              "counts": {
+                "absent": 0,
+                "late": 0,
+                "leave": 0,
+                "low": 0,
+                "mid": 0,
+                "high": 0,
+                "dlow": 0,
+                "dmid": 0,
+                "dhigh": 0
+              },
+              "score": "60.00"
+            }
+          ],
+          "term_score": "59.25"
+        }
+      ],
+      "class_id": "101",
+      "term": {
+        "key": "2026-autumn",
+        "start_date": "2026-09-01",
+        "end_date_exclusive": "2027-02-01",
+        "months": [
+          "2026-09",
+          "2026-10"
+        ],
+        "read_only": false
+      },
+      "policy": {
+        "owner_id": "100",
+        "term_key": "2026-autumn",
+        "version_id": "policy_2",
+        "settings_revision": 2,
+        "algorithm_version": "calendar-decimal-v1",
+        "base_score": "60.00",
+        "minimum_score": "0.00",
+        "maximum_score": null,
+        "weights": {
+          "absent": "2.00",
+          "late": "1.50",
+          "leave": "0.00",
+          "low": "1.00",
+          "mid": "3.00",
+          "high": "5.00",
+          "dlow": "5.00",
+          "dmid": "8.00",
+          "dhigh": "12.00"
+        },
+        "frozen": false
+      },
+      "roster_revision": 1,
+      "score_basis": "current_facts",
+      "pagination": {
+        "limit": 50,
+        "next_cursor": null,
+        "snapshot_revision": "synthetic-snapshot-1"
+      },
+      "meta": {
+        "request_id": "synthetic-request-001",
+        "business_date": "2026-10-03",
+        "timezone": "Asia/Shanghai",
+        "current_term_key": "2026-autumn",
+        "replayed": false
+      }
+    }
+  }
+}

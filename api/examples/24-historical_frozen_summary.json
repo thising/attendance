@@ -1,0 +1,178 @@
+{
+  "name": "historical_frozen_summary",
+  "synthetic": true,
+  "description": "仅合同：归档保留当期姓名、规则和原成绩，不能用当前名单或新权重重解释。",
+  "request": {
+    "method": "GET",
+    "path": "/classes/101/summaries",
+    "headers": {
+      "Authorization": "Bearer SYNTHETIC-NOT-A-CREDENTIAL"
+    },
+    "query": {
+      "term_key": "2026-spring",
+      "limit": 50
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "result": [
+        {
+          "student": {
+            "id": "201",
+            "membership_id": "401",
+            "number": "SYN001",
+            "name": "示例甲原名"
+          },
+          "months": [
+            {
+              "month": "2026-02",
+              "counts": {
+                "absent": 0,
+                "late": 0,
+                "leave": 0,
+                "low": 0,
+                "mid": 0,
+                "high": 0,
+                "dlow": 0,
+                "dmid": 0,
+                "dhigh": 0
+              },
+              "score": "60.00"
+            },
+            {
+              "month": "2026-03",
+              "counts": {
+                "absent": 0,
+                "late": 0,
+                "leave": 0,
+                "low": 0,
+                "mid": 0,
+                "high": 0,
+                "dlow": 0,
+                "dmid": 0,
+                "dhigh": 0
+              },
+              "score": "60.00"
+            },
+            {
+              "month": "2026-04",
+              "counts": {
+                "absent": 0,
+                "late": 0,
+                "leave": 0,
+                "low": 0,
+                "mid": 0,
+                "high": 0,
+                "dlow": 0,
+                "dmid": 0,
+                "dhigh": 0
+              },
+              "score": "60.00"
+            },
+            {
+              "month": "2026-05",
+              "counts": {
+                "absent": 0,
+                "late": 0,
+                "leave": 0,
+                "low": 0,
+                "mid": 0,
+                "high": 0,
+                "dlow": 0,
+                "dmid": 0,
+                "dhigh": 0
+              },
+              "score": "60.00"
+            },
+            {
+              "month": "2026-06",
+              "counts": {
+                "absent": 0,
+                "late": 0,
+                "leave": 0,
+                "low": 0,
+                "mid": 0,
+                "high": 0,
+                "dlow": 0,
+                "dmid": 0,
+                "dhigh": 0
+              },
+              "score": "60.00"
+            },
+            {
+              "month": "2026-07",
+              "counts": {
+                "absent": 0,
+                "late": 0,
+                "leave": 0,
+                "low": 0,
+                "mid": 0,
+                "high": 0,
+                "dlow": 0,
+                "dmid": 0,
+                "dhigh": 0
+              },
+              "score": "60.00"
+            }
+          ],
+          "term_score": "60.00"
+        }
+      ],
+      "class_id": "101",
+      "term": {
+        "key": "2026-spring",
+        "start_date": "2026-02-01",
+        "end_date_exclusive": "2026-08-01",
+        "months": [
+          "2026-02",
+          "2026-03",
+          "2026-04",
+          "2026-05",
+          "2026-06",
+          "2026-07"
+        ],
+        "read_only": true
+      },
+      "policy": {
+        "owner_id": "100",
+        "term_key": "2026-spring",
+        "version_id": "legacy_policy_1",
+        "settings_revision": 1,
+        "algorithm_version": "legacy-archived-baseline",
+        "base_score": "60.00",
+        "minimum_score": "0.00",
+        "maximum_score": null,
+        "weights": {
+          "absent": "2.00",
+          "late": "1.00",
+          "leave": "0.00",
+          "low": "1.00",
+          "mid": "3.00",
+          "high": "5.00",
+          "dlow": "5.00",
+          "dmid": "8.00",
+          "dhigh": "12.00"
+        },
+        "frozen": true
+      },
+      "roster_revision": 1,
+      "score_basis": "archived_baseline",
+      "pagination": {
+        "limit": 50,
+        "next_cursor": null,
+        "snapshot_revision": "synthetic-snapshot-1"
+      },
+      "meta": {
+        "request_id": "synthetic-request-001",
+        "business_date": "2026-10-03",
+        "timezone": "Asia/Shanghai",
+        "current_term_key": "2026-autumn",
+        "replayed": false
+      }
+    }
+  }
+}

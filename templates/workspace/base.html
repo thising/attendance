@@ -1,0 +1,85 @@
+{% load static %}
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>{% block title %}笃行 · 学生操行管理系统{% endblock %}</title>
+  <link rel="icon" href="{% static 'workspace/duxing-bamboo-small.svg' %}" type="image/svg+xml">
+  <link rel="stylesheet" href="{% static 'workspace/workspace.css' %}?v=20260924-sidebar-refine-3">
+  <script src="{% static 'workspace/workspace.js' %}?v=20260924-sidebar-refine-3" defer></script>
+</head>
+<body data-page="{{ page }}" class="{% if data.historical %}historical-view{% endif %}">
+  <a class="skip-link" href="#workspace-main">跳至主要内容</a>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" data-global-nav="dashboard" href="/{% if data.term.key %}?term={{ data.term.key|urlencode }}{% endif %}" aria-label="笃行，返回工作台">
+        <img src="{% static 'workspace/duxing-bamboo.svg' %}" width="40" height="40" alt="">
+        <span><strong>笃行</strong><small>学生操行管理系统</small></span>
+      </a>
+      <nav class="main-nav" aria-label="系统导航">
+        <a data-global-nav="dashboard" href="/{% if data.term.key %}?term={{ data.term.key|urlencode }}{% endif %}" {% if page == 'dashboard' %}aria-current="page"{% endif %}><span data-icon="home"></span>工作台</a>
+        {% if data.actor.role == 'owner' %}
+        <a data-global-nav="rules" href="/rules/{% if data.term.key %}?term={{ data.term.key|urlencode }}{% endif %}" {% if page == 'rules' %}aria-current="page"{% endif %}><span data-icon="sliders"></span>评分规则</a>
+        {% endif %}
+      </nav>
+      <div class="sidebar-note">日常有序<br>成长有迹</div>
+      <div class="identity">
+        <strong>{% if data.actor.role != 'anonymous' and data.actor.role %}{% if data.actor.display_name %}{{ data.actor.display_name }}{% elif data.actor.username %}{{ data.actor.username }}{% else %}{{ data.actor.label }}{% endif %}{% else %}欢迎使用笃行{% endif %}</strong>
+        <small id="identity-caption">{% if data.actor.role == 'owner' %}班主任{% elif data.actor.role == 'committee' %}班委账号 · 固定3小时{% else %}班主任与班委分别登录{% endif %}</small>
+        {% if data.actor.role != 'anonymous' and data.actor.role %}
+        <form method="post" action="/logout/">{% csrf_token %}<button class="text-button" type="submit"><span data-icon="logout"></span>退出登录</button></form>
+        {% else %}<a class="text-button" href="/login/"><span data-icon="login"></span>班主任登录</a>{% endif %}
+      </div>
+      <footer class="sidebar-copyright">© 2018 <a href="mailto:ams@unzip.work" aria-label="Gauss Tech，发送邮件至 ams@unzip.work">Gauss Tech</a></footer>
+    </aside>
+    <div class="main-shell">
+      <header class="topbar">
+        <span class="edition">日常有序，成长有迹</span>
+        <div class="context-selects">
+          {% if data.classes %}<label class="inline-field">班级<select id="class-switch" aria-label="选择班级"><option value="">全部班级</option>{% for c in data.classes %}<option value="{{ c.code }}" {% if c.code == data.classroom.code %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select></label>{% endif %}
+          {% if data.term %}<label class="inline-field">学期<select id="term-switch" aria-label="选择学期">{% if data.terms %}{% for t in data.terms %}<option value="{{ t.key }}" {% if t.key == data.term.key %}selected{% endif %}>{{ t.label }}{% if t.readonly %} · 已结束{% endif %}</option>{% endfor %}{% else %}<option value="{{ data.term.key }}">{{ data.term.label }}</option>{% endif %}</select></label>{% endif %}
+        </div>
+      </header>
+      <main id="workspace-main" class="content" tabindex="-1">
+        {% if data.classroom and data.actor.role != 'anonymous' %}
+        <section id="class-context" class="class-context" aria-label="当前班级">
+          <div class="breadcrumbs"><a data-global-nav="dashboard" href="/{% if data.term.key %}?term={{ data.term.key|urlencode }}{% endif %}">工作台</a><span aria-hidden="true">/</span><span>班级空间</span></div>
+          <div class="class-context-heading"><span data-icon="book"></span><strong id="class-context-name">{{ data.classroom.name }}</strong><span id="class-context-term">{{ data.term.label }}</span></div>
+          <nav class="class-nav" aria-label="班级导航">
+            <a data-nav="class" href="/classes/{{ data.classroom.code|urlencode }}/{% if data.term.key %}?term={{ data.term.key|urlencode }}{% endif %}" {% if page == 'class' or page == 'student' %}aria-current="page"{% endif %}><span data-icon="book"></span>班级总览</a>
+            {% if not data.readonly %}<a data-nav="record" href="/classes/{{ data.classroom.code|urlencode }}/records/new/" {% if page == 'record' %}aria-current="page"{% endif %}><span data-icon="clipboard"></span>快速录入</a>{% endif %}
+            {% if data.actor.role == 'owner' %}
+            <a data-nav="roster" href="/classes/{{ data.classroom.code|urlencode }}/roster/{% if data.term.key %}?term={{ data.term.key|urlencode }}{% endif %}" {% if page == 'roster' %}aria-current="page"{% endif %}><span data-icon="users"></span>班级管理</a>
+            <a data-nav="events" href="/classes/{{ data.classroom.code|urlencode }}/events/{% if data.term.key %}?term={{ data.term.key|urlencode }}{% endif %}" {% if page == 'events' %}aria-current="page"{% endif %}><span data-icon="history"></span>操作记录</a>
+            {% endif %}
+          </nav>
+        </section>
+        {% endif %}
+        {% if data.readonly %}<div class="notice readonly-notice"><span data-icon="lock"></span><div><strong>{{ data.readonly_label|default:'已结束 · 只读' }}</strong><p>{{ data.readonly_reason|default:'本学期的名单、业务记录、评分规则及成绩仅可查看。' }}</p></div></div>{% endif %}
+        <noscript><div class="notice">请启用 JavaScript 以查看工作台和使用快速录入。当前尚未提交任何内容。</div></noscript>
+        {% block content %}{% endblock %}
+      </main>
+      <footer class="site-footer">笃行 · 学生操行管理系统<span>日常有序，成长有迹</span></footer>
+    </div>
+  </div>
+  <div class="toast" id="app-toast" role="status" aria-live="polite" hidden></div>
+  <dialog id="auth-dialog" class="modal" aria-labelledby="auth-title">
+    <form id="reauth-form">
+      <div class="section-title"><span data-icon="lock"></span><h2 id="auth-title">重新授权，继续录入</h2></div>
+      <p>班委授权已到期或失效。当前页面的输入已保留，验证后可继续提交。</p>
+      <label class="field">班委账号<input name="username" autocomplete="username" readonly required></label>
+      <label class="field">账号密码<input name="password" type="password" autocomplete="current-password" required maxlength="128"></label>
+      <p class="small">使用原账号恢复授权，当前名单和提交编号均会保留。</p>
+      <p class="form-message" id="auth-message" role="alert"></p>
+      <div class="actions"><button type="button" class="button" data-close-dialog>稍后再试</button><button class="button primary" type="submit"><span data-icon="key"></span>授权3小时</button></div>
+    </form>
+  </dialog>
+  <dialog id="action-dialog" class="modal" aria-labelledby="action-title"></dialog>
+  <dialog id="credential-dialog" class="modal" aria-labelledby="credential-title"></dialog>
+  <dialog id="copy-dialog" class="modal" aria-labelledby="copy-title"></dialog>
+  <div hidden id="csrf-source">{% csrf_token %}</div>
+  {{ data|json_script:"workspace-data" }}
+</body>
+</html>

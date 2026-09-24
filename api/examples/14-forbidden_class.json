@@ -1,0 +1,36 @@
+{
+  "name": "forbidden_class",
+  "synthetic": true,
+  "description": "仅合同：委托仅允许101/102班，显式请求103班被拒绝。",
+  "request": {
+    "method": "GET",
+    "path": "/classes/103/students",
+    "headers": {
+      "Authorization": "Bearer SYNTHETIC-NOT-A-CREDENTIAL"
+    },
+    "query": {
+      "term_key": "2026-autumn"
+    }
+  },
+  "response": {
+    "status": 403,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "error": {
+        "code": "class_scope_denied",
+        "message": "没有该班级的委托权限。",
+        "retryable": false,
+        "fields": []
+      },
+      "meta": {
+        "request_id": "synthetic-request-001",
+        "business_date": "2026-10-03",
+        "timezone": "Asia/Shanghai",
+        "current_term_key": "2026-autumn",
+        "replayed": false
+      }
+    }
+  }
+}

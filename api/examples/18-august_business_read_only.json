@@ -1,0 +1,53 @@
+{
+  "name": "august_business_read_only",
+  "synthetic": true,
+  "description": "仅合同：8月不存在当前学期，伪造7月日期也不能写业务。",
+  "request": {
+    "method": "POST",
+    "path": "/classes/101/records",
+    "headers": {
+      "Authorization": "Bearer SYNTHETIC-NOT-A-CREDENTIAL",
+      "Content-Type": "application/json",
+      "Idempotency-Key": "00000000-0000-4000-8000-000000000006"
+    },
+    "body": {
+      "expected_current_term_key": "2026-spring",
+      "term_key": "2026-spring",
+      "roster_revision": 1,
+      "kind": "class",
+      "date": "2026-07-10",
+      "name": "合成专业课点名",
+      "students": [
+        {
+          "id": "201",
+          "value": "late"
+        },
+        {
+          "id": "202",
+          "value": "normal"
+        }
+      ]
+    }
+  },
+  "response": {
+    "status": 403,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "error": {
+        "code": "august_read_only",
+        "message": "8月业务只读，仅可查看历史。",
+        "retryable": false,
+        "fields": []
+      },
+      "meta": {
+        "request_id": "synthetic-request-001",
+        "business_date": "2026-08-15",
+        "timezone": "Asia/Shanghai",
+        "current_term_key": null,
+        "replayed": false
+      }
+    }
+  }
+}

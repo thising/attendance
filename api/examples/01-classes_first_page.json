@@ -1,0 +1,44 @@
+{
+  "name": "classes_first_page",
+  "synthetic": true,
+  "description": "仅合同：获授权两个虚构班级的第一页；游标不是凭据。",
+  "request": {
+    "method": "GET",
+    "path": "/classes",
+    "headers": {
+      "Authorization": "Bearer SYNTHETIC-NOT-A-CREDENTIAL"
+    },
+    "query": {
+      "limit": 1
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "result": [
+        {
+          "id": "101",
+          "name": "合成设计一班",
+          "owner_id": "100",
+          "revision": 1,
+          "archived": false
+        }
+      ],
+      "pagination": {
+        "limit": 1,
+        "next_cursor": "synthetic-next-class-page",
+        "snapshot_revision": "synthetic-snapshot-1"
+      },
+      "meta": {
+        "request_id": "synthetic-request-001",
+        "business_date": "2026-10-03",
+        "timezone": "Asia/Shanghai",
+        "current_term_key": "2026-autumn",
+        "replayed": false
+      }
+    }
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "name": "current_term_roster",
+  "synthetic": true,
+  "description": "仅合同：完整读取两名虚构学生，使用同一名单revision录入。",
+  "request": {
+    "method": "GET",
+    "path": "/classes/101/students",
+    "headers": {
+      "Authorization": "Bearer SYNTHETIC-NOT-A-CREDENTIAL"
+    },
+    "query": {
+      "term_key": "2026-autumn",
+      "limit": 50
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "result": [
+        {
+          "id": "201",
+          "membership_id": "501",
+          "number": "SYN001",
+          "name": "示例甲"
+        },
+        {
+          "id": "202",
+          "membership_id": "502",
+          "number": "SYN002",
+          "name": "示例乙"
+        }
+      ],
+      "class_id": "101",
+      "term_key": "2026-autumn",
+      "roster_revision": 1,
+      "read_only": false,
+      "pagination": {
+        "limit": 50,
+        "next_cursor": null,
+        "snapshot_revision": "synthetic-snapshot-1"
+      },
+      "meta": {
+        "request_id": "synthetic-request-001",
+        "business_date": "2026-10-03",
+        "timezone": "Asia/Shanghai",
+        "current_term_key": "2026-autumn",
+        "replayed": false
+      }
+    }
+  }
+}

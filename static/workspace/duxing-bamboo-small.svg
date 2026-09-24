@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">笃行 · 竹节小尺寸标志</title>
+  <desc id="desc">用于十六至二十四像素显示的双竹标志，简化为两片叶并扩大竹节间隙。</desc>
+  <style>
+    .ink{fill:#2a4036}.node{fill:#973c31}
+    @media(prefers-color-scheme:dark){.ink{fill:#d5decb}.node{fill:#eea18b}}
+  </style>
+  <g class="ink">
+    <path d="M40 13Q54 15 70 8Q65 27 68 47Q55 47 44 51Q46 30 40 13Z"/>
+    <path d="M44 60Q56 55 68 56Q62 92 70 118Q55 114 40 118Q48 91 44 60Z"/>
+    <path d="M79 54Q88 54 97 49Q94 61 96 74Q87 76 79 74Q81 64 79 54Z"/>
+    <path d="M79 94Q88 96 97 93Q95 104 100 115Q88 114 76 118Q81 106 79 94Z"/>
+    <path d="M44 68Q22 54 10 28Q37 37 44 68Z"/>
+    <path d="M96 96Q98 73 122 61Q113 82 96 96Z"/>
+  </g>
+  <path class="node" d="M78 82Q87 84 98 81L98 88Q87 92 78 89Z"/>
+</svg>

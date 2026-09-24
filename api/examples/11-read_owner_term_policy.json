@@ -1,0 +1,52 @@
+{
+  "name": "read_owner_term_policy",
+  "synthetic": true,
+  "description": "仅合同：两位小数字符串，全部非负，方向由类别决定；没有更新权重端点。",
+  "request": {
+    "method": "GET",
+    "path": "/classes/101/scoring-policy",
+    "headers": {
+      "Authorization": "Bearer SYNTHETIC-NOT-A-CREDENTIAL"
+    },
+    "query": {
+      "term_key": "2026-autumn"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "result": {
+        "owner_id": "100",
+        "term_key": "2026-autumn",
+        "version_id": "policy_2",
+        "settings_revision": 2,
+        "algorithm_version": "calendar-decimal-v1",
+        "base_score": "60.00",
+        "minimum_score": "0.00",
+        "maximum_score": null,
+        "weights": {
+          "absent": "2.00",
+          "late": "1.50",
+          "leave": "0.00",
+          "low": "1.00",
+          "mid": "3.00",
+          "high": "5.00",
+          "dlow": "5.00",
+          "dmid": "8.00",
+          "dhigh": "12.00"
+        },
+        "frozen": false
+      },
+      "meta": {
+        "request_id": "synthetic-request-001",
+        "business_date": "2026-10-03",
+        "timezone": "Asia/Shanghai",
+        "current_term_key": "2026-autumn",
+        "replayed": false
+      }
+    }
+  }
+}

@@ -1,22 +1,2 @@
-from django.db import models
-from manage.models import *
-
-with open("./db-delete.data", "r") as f:
-    buf = f.read()
-    students = buf.split("\n")
-    for s in students:
-        student = Student.objects.get(number = s)
-        print("***Remove ", student)
-        
-        records = student.report_set.all()
-        for i in records:
-            print("- Remove ", i)
-            i.delete()
-
-        records = student.summarycount_set.all()
-        for i in records:
-            print("- Remove ", i)
-            i.delete()
-        
-        student.delete()
-        print("***Finish")
+"""Retired legacy maintenance entry point; cannot bypass term locks."""
+raise SystemExit("旧维护脚本已停用。请使用笃行工作台的授权操作；汇总检查使用 manage.py preview_rebuild。")

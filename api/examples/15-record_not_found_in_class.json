@@ -1,0 +1,33 @@
+{
+  "name": "record_not_found_in_class",
+  "synthetic": true,
+  "description": "仅合同：只在已授权班级内查询，不能借另一班的record_id越权。",
+  "request": {
+    "method": "GET",
+    "path": "/classes/101/records/999",
+    "headers": {
+      "Authorization": "Bearer SYNTHETIC-NOT-A-CREDENTIAL"
+    }
+  },
+  "response": {
+    "status": 404,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "error": {
+        "code": "not_found",
+        "message": "当前班级未找到该记录。",
+        "retryable": false,
+        "fields": []
+      },
+      "meta": {
+        "request_id": "synthetic-request-001",
+        "business_date": "2026-10-03",
+        "timezone": "Asia/Shanghai",
+        "current_term_key": "2026-autumn",
+        "replayed": false
+      }
+    }
+  }
+}
