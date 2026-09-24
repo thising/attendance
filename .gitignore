@@ -1,6 +1,7 @@
 *.txt
 !requirements.txt
 !requirements-dev.txt
+!requirements-prod.txt
 *.sqlite3
 *.bak
 *.db

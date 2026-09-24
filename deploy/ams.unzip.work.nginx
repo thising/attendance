@@ -1,0 +1,41 @@
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ams.unzip.work;
+    return 301 https://ams.unzip.work$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name ams.unzip.work;
+
+    ssl_certificate /etc/nginx/ssl/unzip.work/origin.pem;
+    ssl_certificate_key /etc/nginx/ssl/unzip.work/origin.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    access_log off;
+    error_log /var/log/nginx/ams.unzip.work.error.log warn;
+    client_max_body_size 8m;
+
+    add_header Cache-Control "private, no-store, no-transform" always;
+    add_header Content-Security-Policy "default-src 'self'; img-src 'self' data:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+
+    location ^~ /static/ {
+        alias /opt/duxing/current/.local/staticfiles/;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:8765;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+    }
+}

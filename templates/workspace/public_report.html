@@ -24,22 +24,8 @@
     </section>
     {% endfor %}
     {% else %}<p class="closed-note">8 月暂停本学期业务展示。进入新学期后，此链接将自动显示新学期数据。</p>{% endif %}
-    <footer>笃行 · 日常有序，成长有迹</footer>
+    <footer>笃行 · 日常有序，成长有迹<br><a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">鄂ICP备2026021360号-2</a><br><a href="https://beian.mps.gov.cn/#/query/webSearch?code=42018502009395" target="_blank" rel="noopener noreferrer">鄂公网安备42018502009395号</a></footer>
   </main>
-  <script>
-    document.querySelector('#report-period')?.addEventListener('change', event => {
-      document.querySelectorAll('[data-report-table]').forEach(section => { section.hidden = section.dataset.reportTable !== event.target.value; });
-    });
-    document.querySelector('#report-sort')?.addEventListener('change', event => {
-      const mode=event.target.value, sign=mode.endsWith('desc') ? -1 : 1;
-      const number=new Intl.Collator('zh-CN',{numeric:true,sensitivity:'variant'});
-      const pinyin=new Intl.Collator('zh-CN-u-co-pinyin',{sensitivity:'variant'});
-      document.querySelectorAll('[data-report-table] tbody').forEach(body => {
-        const rows=Array.from(body.querySelectorAll('tr[data-number]'));
-        rows.sort((a,b) => sign*(mode.startsWith('pinyin') ? pinyin.compare(a.dataset.name,b.dataset.name) || number.compare(a.dataset.number,b.dataset.number) : number.compare(a.dataset.number,b.dataset.number)));
-        body.append(...rows);
-      });
-    });
-  </script>
+  <script src="{% static 'workspace/public-report.js' %}?v=3" defer></script>
 </body>
 </html>

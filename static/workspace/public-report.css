@@ -2,3 +2,4 @@
 .report-controls{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 .report-heading .report-updated{font-size:12px;margin-top:7px;font-variant-numeric:tabular-nums}
 .table-scroll .group-row th:nth-child(n+2){border-left:2px solid #c9d0c4}.table-scroll thead tr:nth-child(2) th:nth-child(1),.table-scroll thead tr:nth-child(2) th:nth-child(4),.table-scroll thead tr:nth-child(2) th:nth-child(7),.table-scroll tbody td:nth-child(2),.table-scroll tbody td:nth-child(5),.table-scroll tbody td:nth-child(8),.table-scroll tbody td:nth-child(11){border-left:2px solid #d9ddd8}
+footer a{color:inherit;text-underline-offset:2px}
