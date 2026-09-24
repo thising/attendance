@@ -8,4 +8,6 @@
 
 上线前先把原始来源快照和升级后的库另存到仅 root 可读的目标机备份目录，核对摘要，再启用应用；Nginx 新站配置用 `nginx -t` 验证后平滑重载。应用和两个任务的运行用户均为 `duxing`，只有 `/var/lib/duxing` 可写。公网、源站回环、登录页、静态资源、权限与报表检查必须在启用后完成，现有 `unzip.work`、`grotto.unzip.work`、`base.unzip.work`、`kimi.unzip.work` 的响应需前后对照。
 
+每日北京时间 04:20 的 `duxing-backup.timer` 以 root 身份在 `/var/backups/duxing/` 新建仅 root 可读的目录，用 SQLite 在线备份数据库并配对当时环境文件；完整性、外键和环境稳定性验证通过后才写 `manifest.json`。每次新建，不覆盖或自动删除旧备份。本机备份能应对误改或单文件损坏，**不能代替异地备份或整机灾难恢复**；异地目标仍待用户指定。
+
 若新站首次发布失败，先禁用并停止 `duxing-ams.service` 和两个定时器，将 `/etc/nginx/sites-enabled/zz-ams.unzip.work` 移走并重载已验证的 Nginx 配置；既有站点保持不变。若新站已产生业务写入，先将当前数据库、环境文件和代码版本另存，再决定恢复或人工合并，不能直接以旧快照覆盖新写入。目标机没有此应用的既有发布可回退；旧 VPS207 网站是独立服务，不在本次部署中变更。
