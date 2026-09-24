@@ -89,6 +89,10 @@
 - **WHEN** 手机宽度为320像素
 - **THEN** 状态按钮仍可直接点击，触控区至少44像素高，姓名与学号可读，不退回下拉选择
 
+#### Scenario: Personal record status on a narrow screen
+- **WHEN** 手机宽度为320像素且学生有个人记录
+- **THEN** 本次状态与记录名称同时可见，不依赖被隐藏的桌面表格列或横向滚动
+
 ### Requirement: Explicit exceptional states
 系统 SHALL 清楚展示空数据、只读、失败、冲突、重复请求已处理和正在保存状态。
 
@@ -117,6 +121,8 @@
 
 ### Requirement: Grouped personal score tables
 系统 SHALL 在全员学期概况、班级学期汇总和班级月度明细中使用相同的两层表头和完整九项次数：考勤下为缺勤、迟到、请假，活动下为班级、院级、校级，违纪下为轻度、中度、严重；个人分数独立显示。三个类别之间 SHALL 有无需依赖颜色也能辨识的视觉边界。
+
+长表 SHALL 在表格内部纵向滚动时保持两层表头可见，允许键盘聚焦及横向滚动；零权重的非零行为次数 SHALL 保留数字并使用中性标记，不被称为实际扣分或奖励。
 
 #### Scenario: Inspect a class semester
 - **WHEN** 班主任打开某班学期汇总
@@ -189,6 +195,8 @@
 
 ### Requirement: Count affected students per business record
 系统 SHALL 在班级业务记录列表显示本次记录人数：考勤统计非正常人数，活动与违纪统计依据该学期权重产生非零分值的人数。
+
+班级和个人记录列表 SHALL 区分发生日期与录入时分，并支持按名称、发生日期及类型筛选；筛选后仍显示记录列表与原有学期/月度上下文。已有记录的业务类型 SHALL 固定展示，不呈现可以切换类型的可操作控件。
 
 #### Scenario: Zero-weight event
 - **WHEN** 一次活动有多人标记参与但其中某等级权重为0

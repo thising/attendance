@@ -3,13 +3,13 @@ import json
 from functools import wraps
 from django.contrib.auth import authenticate, login, logout
 from django.core.paginator import Paginator
-from django.db import OperationalError, transaction
-from django.db.models import Count, Max, Q
+from django.db import OperationalError
+from django.db.models import Count, Max, Min, Q
 from django.http import JsonResponse, HttpResponseRedirect, Http404
 from django.shortcuts import render
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods, require_POST
-from manage.models import Class, Activity, AuditEvent, Student, PublicClassReportLink, WEIGHT_DEFAULTS
+from manage.models import Class, ClassTerm, Activity, AuditEvent, Student, PublicClassReportLink, WEIGHT_DEFAULTS
 from manage.services import calendar
 from manage.services.access import get_class, actor_for, owner_actor, authorize, committee_actor
 from manage.services.errors import BusinessError
@@ -24,6 +24,7 @@ from django.views.decorators.cache import never_cache
 from manage.services import monthly
 from manage.services.public_reports import change_link, link_details, token_digest
 from manage.services.report_snapshots import get_current_report
+from manage.services.read_snapshot import read_snapshot_view
 
 
 def payload(request):
@@ -102,7 +103,7 @@ def common(request,classroom=None,term=None,actor=None):
         'actor':identity,'term':{'key':term.key,'label':term.label},'today':today.isoformat(),
         'start_date':term.start.isoformat(),'readonly':readonly,'historical':term.end <= today,'readonly_reason':reason,
         'readonly_label':'数据待核实' if classroom and classroom.legacy_pending else '班级已归档' if classroom and classroom.archived else '历史快照 · 只读' if term.end <= today else '非当前学期 · 只读',
-        'terms':term_options(classroom,today),'user_label':identity.get('username',''),
+        'terms':term_options(classroom,today,classes),'user_label':identity.get('username',''),
         'login_role':'committee' if request.GET.get('role')=='committee' else 'owner'}
 
 
@@ -120,9 +121,18 @@ def class_metrics(classroom,student_count,term,report=None):
     return {'student_count':student_count,**stats}
 
 
-def term_options(classroom,today):
+def term_options(classroom,today,classes=None):
     term=calendar.display_term(today)
-    start=calendar.term_for_date(classroom.started_on) if classroom else calendar.previous_term(term)
+    authorized=[classroom] if classroom else list(classes or [])
+    starts=[c.started_on for c in authorized]
+    if authorized:
+        ids=[c.pk for c in authorized]
+        earliest_activity=Activity.objects.filter(inclass_id__in=ids).aggregate(day=Min('occurred_on'))['day']
+        if earliest_activity:starts.append(earliest_activity)
+        for key in ClassTerm.objects.filter(inclass_id__in=ids).values_list('term_key',flat=True):
+            starts.append(calendar.parse_term(key).start)
+    start=calendar.term_for_date(min(starts)) if starts else term
+    if start is None:start=calendar.term_for_date(calendar.previous_term(term).start)
     start=start or calendar.display_term(today)
     result=[]
     while term.start>=start.start and len(result)<80:
@@ -157,6 +167,7 @@ def class_context(request,code,owner_only=False,term=None):
 
 def record_item(activity):
     return {'id':activity.pk,'name':activity.name,'details':activity.details,'kind':activity.activity_type,'date':activity.occurred_on.isoformat(),
+            'time':activity.time.isoformat(timespec='minutes'),
             'revision':activity.revision,'status':activity.status,'student_count':getattr(activity,'student_count',None),
             'url':f'/classes/{activity.inclass.code}/records/{activity.pk}/'}
 
@@ -181,7 +192,7 @@ def archived_record_count(record, weights):
 @ensure_csrf_cookie
 @guarded
 @require_http_methods(['GET','POST'])
-@transaction.atomic
+@read_snapshot_view
 def index(request):
     if request.method=='POST':return success(create_class(request,payload(request)))
     term=selected_term(request)
@@ -196,6 +207,7 @@ def index(request):
             data['class_summaries'].append({**item,'pending':True})
         else:
             report=class_report(c,term)
+            if 'policy' not in data:data['policy']=report['policy']
             data['class_summaries'].append({**item,**class_metrics(c,report['summary']['student_count'],term,report)})
             data['dashboard_students'].extend({**row,'class_id':c.pk,'class_name':c.classname,'class_code':c.code,
                 'score_base':monthly.score_base(report),
@@ -242,7 +254,7 @@ def class_authorize(request,code):
 @ensure_csrf_cookie
 @guarded
 @require_http_methods(['GET'])
-@transaction.atomic
+@read_snapshot_view
 def class_info(request,code):
     classroom,actor,data=class_context(request,code)
     if actor is None:return data
@@ -251,17 +263,30 @@ def class_info(request,code):
     data.update(students=report['rows'],top_three=class_top_three(report['rows']),
         summary=class_metrics(classroom,report['summary']['student_count'],term,report),
         policy=report['policy'],monthly_overview=monthly.term_monthly_overview(classroom,term,report=report))
+    data['august_years']=[day.year for day in Activity.objects.filter(inclass=classroom,
+        occurred_on__month=8).dates('occurred_on','year',order='DESC')]
     data['public_report']=link_details(request,classroom)
     kind=request.GET.get('kind','')
+    name=request.GET.get('name','').strip()[:64]
+    day=request.GET.get('date','').strip()
+    if day:
+        from datetime import date
+        try:day=date.fromisoformat(day).isoformat()
+        except ValueError:raise BusinessError('invalid_record_date','查询日期无效。')
+    data['record_filters']={'kind':kind,'name':name,'date':day}
     if term.end <= calendar.business_today():
         data['records_unavailable']='activities' not in report
         records=[{**record,'student_count':archived_record_count(record,report['policy']['weights'])}
                  for record in report.get('activities',[])]
         if kind in ('class','activity','discipline'):records=[r for r in records if r['kind']==kind]
+        if name:records=[r for r in records if name.casefold() in r['name'].casefold()]
+        if day:records=[r for r in records if r['date']==day]
     else:
         records=counted_records(classroom.activity_set.select_related('inclass').filter(
             occurred_on__gte=term.start,occurred_on__lt=term.end),report['policy']['weights'])
         if kind in ('class','activity','discipline'):records=records.filter(activity_type=kind)
+        if name:records=records.filter(name__icontains=name)
+        if day:records=records.filter(occurred_on=day)
     listing=Paginator(records,30).get_page(request.GET.get('page',1))
     data['records']=list(listing) if term.end <= calendar.business_today() else [record_item(r) for r in listing]
     data['pagination']={'page':listing.number,'pages':listing.paginator.num_pages,'count':listing.paginator.count}
@@ -271,7 +296,7 @@ def class_info(request,code):
 @ensure_csrf_cookie
 @guarded
 @require_http_methods(['GET','POST'])
-@transaction.atomic
+@read_snapshot_view
 def record_page(request,code,record_id=None):
     if request.method=='POST':return success(save_record(request,code,payload(request),record_id))
     classroom,actor,data=class_context(request,code)
@@ -298,11 +323,16 @@ def record_page(request,code,record_id=None):
         if archived is None:
             try:activity=Activity.objects.get(pk=record_id,inclass=classroom)
             except Activity.DoesNotExist:raise BusinessError('not_found','记录不存在或不属于本班。',404)
+    august_legacy=bool(activity and activity.occurred_on.month==8)
     term=archive_term or (calendar.term_for_date(activity.occurred_on) if activity else calendar.display_term())
     term=term or calendar.display_term()
     data=common(request,classroom,term,actor)
+    if august_legacy:
+        data.update(readonly=True,historical=True,readonly_label='8 月旧记录 · 只读',
+                    readonly_reason='8 月不属于计分学期；仅展示当时明确保存的个人记录，不推算完整名单或成绩。',
+                    record_return_url=f'/classes/{classroom.code}/august/?year={activity.occurred_on.year}')
     if classroom.legacy_pending:raise BusinessError('legacy_baseline_pending','旧库记录尚待迁移核对。',409)
-    if term.end <= calendar.business_today() and record_id:
+    if term.end <= calendar.business_today() and record_id and not august_legacy:
         report=class_report(classroom,term)
         archived=next((a for a in report.get('activities',[]) if a['id']==record_id),None)
         if archived is None:
@@ -310,6 +340,11 @@ def record_page(request,code,record_id=None):
         students=report.get('record_roster',report['rows'])
         values={r['id']:(archived['student_values'].get(str(r['id'])) or 'normal') for r in students}
         record=archived
+    elif august_legacy:
+        facts=list(activity.report_set.select_related('student').order_by('student__number','student_id'))
+        students=[{'id':r.student_id,'name':r.student.name,'number':r.student.number,'sex':r.student.sex} for r in facts]
+        values={r.student_id:(r.status if activity.activity_type=='class' else r.level if activity.activity_type=='activity' else 'd'+r.discipline) for r in facts}
+        record=record_item(activity)
     else:
         students=record_roster(classroom,term,activity)
         values={r['id']:'normal' for r in students}
@@ -327,7 +362,30 @@ def record_page(request,code,record_id=None):
 @ensure_csrf_cookie
 @guarded
 @require_http_methods(['GET'])
-@transaction.atomic
+@read_snapshot_view
+def august_records(request,code):
+    classroom,actor,data=class_context(request,code)
+    if actor is None:return data
+    years=list(Activity.objects.filter(inclass=classroom,occurred_on__month=8)
+        .dates('occurred_on','year',order='DESC'))
+    if not years:raise BusinessError('not_found','本班没有 8 月旧记录。',404)
+    try:year=int(request.GET.get('year',years[0].year))
+    except (ValueError,TypeError):raise BusinessError('invalid_year','年份无效。')
+    if year not in [day.year for day in years]:raise BusinessError('not_found','该年没有 8 月旧记录。',404)
+    records=Activity.objects.filter(inclass=classroom,occurred_on__year=year,occurred_on__month=8).order_by('-occurred_on','-id')
+    listing=Paginator(records,30).get_page(request.GET.get('page',1))
+    data.update(readonly=True,historical=True,readonly_label='8 月旧记录 · 只读',
+        readonly_reason='8 月不属于计分学期；记录单独展示，不参与任何学期成绩。',
+        august_year=year,august_years=[day.year for day in years],
+        records=[record_item(r) for r in listing],
+        pagination={'page':listing.number,'pages':listing.paginator.num_pages,'count':listing.paginator.count})
+    return page(request,'august',data)
+
+
+@ensure_csrf_cookie
+@guarded
+@require_http_methods(['GET'])
+@read_snapshot_view
 def student_detail(request,code,student_id):
     classroom,actor,data=class_context(request,code)
     if actor is None:return data
@@ -341,16 +399,30 @@ def student_detail(request,code,student_id):
     data['policy']=report['policy']
     data['selected_month']=monthly.student_month(classroom,student_id,month_start,report) if month_start else None
     data['term_detail_url']=f'/classes/{classroom.code}/students/{student_id}/?term={term.key}'
+    kind=request.GET.get('kind','')
+    name=request.GET.get('name','').strip()[:64]
+    day=request.GET.get('date','').strip()
+    if day:
+        from datetime import date
+        try:day=date.fromisoformat(day).isoformat()
+        except ValueError:raise BusinessError('invalid_record_date','查询日期无效。')
+    data['record_filters']={'kind':kind,'name':name,'date':day}
     historical=term.end <= calendar.business_today()
     if historical:
         data['records_unavailable']='activities' not in report
         records=[{**a,'value':a['student_values'][str(student_id)]} for a in report.get('activities',[])
                  if str(student_id) in a['student_values']
                  and (not month_start or month_start.isoformat()<=a['date']<monthly.next_month(month_start).isoformat())]
+        if kind in ('class','activity','discipline'):records=[r for r in records if r['kind']==kind]
+        if name:records=[r for r in records if name.casefold() in r['name'].casefold()]
+        if day:records=[r for r in records if r['date']==day]
     else:
         records=classroom.activity_set.select_related('inclass').filter(report__student_id=student_id,
             occurred_on__gte=month_start or term.start,
             occurred_on__lt=monthly.next_month(month_start) if month_start else term.end)
+        if kind in ('class','activity','discipline'):records=records.filter(activity_type=kind)
+        if name:records=records.filter(name__icontains=name)
+        if day:records=records.filter(occurred_on=day)
     listing=Paginator(records,30).get_page(request.GET.get('page',1))
     if historical:
         data['records']=list(listing)
@@ -368,7 +440,7 @@ def student_detail(request,code,student_id):
 @ensure_csrf_cookie
 @guarded
 @require_http_methods(['GET','POST'])
-@transaction.atomic
+@read_snapshot_view
 def roster_page(request,code):
     if request.method=='POST':return success(change_roster(request,code,payload(request)))
     classroom,actor,data=class_context(request,code,owner_only=True)
@@ -422,7 +494,7 @@ def import_students(request,code):
 @ensure_csrf_cookie
 @guarded
 @require_http_methods(['GET','POST'])
-@transaction.atomic
+@read_snapshot_view
 def rules_page(request):
     actor=owner_actor(request)
     if request.method=='POST':return success(change_rules(request,payload(request)))
@@ -435,7 +507,7 @@ def rules_page(request):
 @ensure_csrf_cookie
 @guarded
 @require_http_methods(['GET'])
-@transaction.atomic
+@read_snapshot_view
 def events_page(request,code):
     classroom,actor,data=class_context(request,code,owner_only=True)
     query=AuditEvent.objects.filter(inclass=classroom)

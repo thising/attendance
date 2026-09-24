@@ -7,6 +7,7 @@ import re
 from datetime import date, timedelta
 
 from django.db import transaction
+from .read_snapshot import consistent_read
 
 from manage.models import WEIGHT_DEFAULTS
 from . import calendar
@@ -78,7 +79,7 @@ def month_cell(classroom, student_id, start, report=None, today=None):
     return result
 
 
-@transaction.atomic
+@consistent_read
 def monthly_overview(classroom, term, report=None, today=None):
     """Return two preloaded month columns aligned to the selected term's roster."""
     today = today or calendar.business_today()

@@ -45,8 +45,8 @@
   function monthlyPolicy(policy = data.policy) { return policy?.monthly || {base:'60.00',minimum:'0.00',maximum:null}; }
   function countBadge(value,key) {
     if (value === null || value === undefined) return '<span class="count-mark unavailable">—</span>';
-    const n = number(value), rewarding = rewardFields.has(key);
-    return `<span class="count-mark ${n === 0 ? 'zero' : rewarding ? 'reward' : 'deduction'}" title="${escape(labels[key] || '活动')} ${n} 次">${n ? icon(rewarding ? 'plus' : 'minus') : ''}<span>${n}</span></span>`;
+    const n = number(value), rewarding = rewardFields.has(key), zeroWeight = data.policy?.weights && Number(data.policy.weights[key]) === 0;
+    return `<span class="count-mark ${n === 0 ? 'zero' : zeroWeight ? 'neutral' : rewarding ? 'reward' : 'deduction'}" title="${escape(labels[key] || '活动')} ${n} 次${zeroWeight ? ' · 当期权重为0，不影响分数' : ''}">${n && !zeroWeight ? icon(rewarding ? 'plus' : 'minus') : ''}<span>${n}</span></span>`;
   }
   function groupedScoreHeader(scoreLabel) {
     return `<thead><tr class="score-group-row"><th scope="col" rowspan="2" class="identity-student">学生</th>${countGroups.map(group => `<th scope="colgroup" colspan="3" class="group-heading group-${group.key}">${group.label}</th>`).join('')}<th scope="col" rowspan="2" class="score-column">${scoreLabel}</th></tr><tr class="score-detail-row">${countGroups.map(group => group.fields.map((field,index) => `<th scope="col" aria-label="${labels[field]}" class="${index === 0 ? 'group-start ' : ''}group-${group.key}">${group.key === 'attendance' ? labels[field] : labels[field].replace(group.label,'')}</th>`).join('')).join('')}</tr></thead>`;
@@ -62,7 +62,7 @@
     const contents = `<span class="score-value">${number(value).toFixed(places)}</span><span class="score-indicator">${icon(direction === 'below' ? 'minus' : direction === 'above' ? 'plus' : 'check')}${label}</span>`;
     return href ? `<a class="score-mark ${direction}" href="${escape(href)}" title="${validBase ? `当期基础分 ${fmt(baseValue)}` : '查看个人计分依据'}">${contents}</a>` : `<span class="score-mark ${direction}" title="${validBase ? `当期基础分 ${fmt(baseValue)}` : '查看个人计分依据'}">${contents}</span>`;
   }
-  function scoreLegend() { return data.historical ? '<p class="score-legend"><span>历史快照 · 灰色只读</span><span>分数及九项次数均按当期规则保存</span></p>' : '<p class="score-legend"><span class="legend-deduction">朱砂：扣分次数</span><span class="legend-reward">青绿：奖励次数</span><span>0次弱化显示 · 分数与当期月度基础分比较</span></p>'; }
+  function scoreLegend() { return data.historical ? '<p class="score-legend"><span>历史快照 · 灰色只读</span><span>分数及九项次数均按当期规则保存</span></p>' : '<p class="score-legend"><span class="legend-deduction">朱砂：计分扣减的行为次数</span><span class="legend-reward">青绿：计分奖励的活动次数</span><span>灰色：零次或零权重行为；次数仍保留</span></p>'; }
   function policyIdentity(policy = data.policy) {
     if (policy?.version !== undefined && policy.version !== null) return number(policy.version) > 0 ? `版本 ${policy.version}` : '默认规则';
     return number(policy?.revision) === 0 ? '默认规则' : '当期固定规则';
@@ -209,7 +209,7 @@
   function recordHref(record) { return `${base()}records/${urlPart(record.id)}/${termQuery()}`; }
   function recordsTable(records, {studentMode = false} = {}) {
     if (!records?.length) return empty(data.records_unavailable ? '历史记录快照待核实' : '还没有业务记录', data.records_unavailable ? '该学期没有可用的记录快照，不能用当前事实推算历史记录。' : data.readonly ? '该学期暂无可展示的记录。' : '从一次点名开始；保存后立即参与计分。', 'clipboard');
-    return `<div class="table-wrap"><table class="table"><thead><tr><th>记录与日期</th><th>类型</th><th class="desktop-only">${studentMode ? '本次状态' : '记录人数'}</th><th>查看</th></tr></thead><tbody>${records.map(record => `<tr><td><a class="student-name" href="${recordHref(record)}">${escape(record.name)}</a><span class="student-number">${escape(record.date)}</span></td><td>${escape(kindLabels[record.kind] || record.kind)}</td><td class="desktop-only">${studentMode ? escape(labels[record.value] || record.status_label || '—') : escape(record.student_count ?? '—')}</td><td>${link('详情','eye',recordHref(record))}</td></tr>`).join('')}</tbody></table></div>`;
+    return `<div class="table-wrap"><table class="table"><thead><tr><th>记录与时间</th><th>类型</th><th class="desktop-only">${studentMode ? '本次状态' : '记录人数'}</th><th>查看</th></tr></thead><tbody>${records.map(record => `<tr><td><a class="student-name" href="${recordHref(record)}">${escape(record.name)}</a><span class="student-number">发生 ${escape(record.date)}${record.time ? ` · 录入 ${escape(String(record.time).replace('T',' ').slice(0,16))}` : ''}</span>${studentMode ? `<span class="mobile-record-status">${icon('clipboard')}本次：${escape(labels[record.value] || record.status_label || '—')}</span>` : ''}</td><td>${escape(kindLabels[record.kind] || record.kind)}</td><td class="desktop-only">${studentMode ? escape(labels[record.value] || record.status_label || '—') : escape(record.student_count ?? '—')}</td><td>${link('详情','eye',recordHref(record))}</td></tr>`).join('')}</tbody></table></div>`;
   }
   function pagination() {
     const p = data.pagination;
@@ -269,6 +269,11 @@
   function recentRecords(records) {
     return `<ul class="timeline">${records.map(r => `<li><small>${escape(r.date)} · ${escape(r.class_name || '')}</small><p><a href="${base(r.class_code || data.classroom?.code)}records/${urlPart(r.id)}/">${escape(r.name)}</a></p><div class="event-meta">${escape(kindLabels[r.kind] || '')}</div></li>`).join('')}</ul>`;
   }
+  function augustPage() {
+    root.innerHTML = heading('8 月旧记录', `${data.august_year} 年 8 月 · 仅查看明确保存的记录，不参与学期计分`, 'history', link('返回班级','book',base()+termQuery()), '班级 · 历史记录') +
+      `<div class="notice">${icon('lock')}<div><strong>旧记录只读</strong><p>8 月不属于计分学期。没有完整名单快照的旧点名，仅展示当时明确保存的个人条目。</p></div></div><div class="toolbar"><div class="section-title">${icon('clipboard')}<h2>记录列表</h2></div><label>年份<select id="august-year">${(data.august_years || []).map(year => `<option value="${year}" ${year === data.august_year ? 'selected' : ''}>${year} 年 8 月</option>`).join('')}</select></label></div>${recordsTable(data.records)}${pagination()}`;
+    q('#august-year').addEventListener('change',event => location.assign(`${base()}august/?year=${urlPart(event.target.value)}`));
+  }
   function classPage() {
     const summary = data.summary || {}; const students = readStudents();
     root.innerHTML = heading('班级总览', data.term?.label || '名单、记录与自然月计分', 'book', writable() ? link('新增记录','plus',`${base()}records/new/`,'primary') : '', '班级 · 学期总览') +
@@ -276,7 +281,7 @@
       `<section class="top-three-section" aria-label="五类学生次数前三名"><div class="section-title">${icon('award')}<h2>班级Top 3</h2></div><p class="small">按所选学期个人记录次数排列，零次不入榜；活动与违纪分别合并三级次数，同次数按学号排序。</p><div class="top-three-grid">${(data.top_three || []).map(group => `<article class="top-three-card"><h3><span class="top-three-heading">${icon(topThreeIcons[group.key])}${escape(group.label)}</span><small>次数前三</small></h3>${group.people?.length ? `<ol>${group.people.map((person,index) => `<li><span class="top-three-rank">${index + 1}</span>${studentIdentity(person,{href:`${base()}students/${urlPart(person.id)}/${termQuery()}`,showSex:true})}<strong>${number(person.count)}<small> 次</small></strong></li>`).join('')}</ol>` : '<p class="top-three-empty">暂无非0记录</p>'}</article>`).join('')}</div></section>` +
       `<div class="tabs" role="tablist" aria-label="班级内容"><button role="tab" id="tab-students" aria-selected="true" aria-controls="panel-students" data-tab="students">${icon('users')}学期汇总</button><button role="tab" id="tab-monthly" aria-selected="false" aria-controls="panel-monthly" data-tab="monthly" tabindex="-1">${icon('calendar')}月度明细</button><button role="tab" id="tab-records" aria-selected="false" aria-controls="panel-records" data-tab="records" tabindex="-1">${icon('clipboard')}业务记录</button></div>` +
       `<section id="panel-students" role="tabpanel" aria-labelledby="tab-students"><div class="toolbar"><div class="section-title">${icon('users')}<h2>学生汇总</h2></div><div class="student-list-tools"><label class="visually-hidden" for="student-search">搜索学生姓名或学号</label><input type="search" id="student-search" class="search" placeholder="搜索姓名或学号">${studentSortControl('student-sort')}</div></div><div id="student-results"></div><div class="table-footer"><span>${escape(policyCaption())}${data.readonly ? ' · 已固定' : ''}</span><span>点击姓名查看计分组成</span></div></section>` +
-      `<section id="panel-monthly" role="tabpanel" aria-labelledby="tab-monthly" hidden></section><section id="panel-records" role="tabpanel" aria-labelledby="tab-records" hidden>${recordsTable(data.records)}${pagination()}</section>` +
+      `<section id="panel-monthly" role="tabpanel" aria-labelledby="tab-monthly" hidden></section><section id="panel-records" role="tabpanel" aria-labelledby="tab-records" hidden><form class="record-filters" method="get"><input type="hidden" name="term" value="${escape(data.term?.key || '')}"><input type="hidden" name="panel" value="records"><label>名称<input name="name" type="search" maxlength="64" value="${escape(data.record_filters?.name || '')}" placeholder="查找记录"></label><label>发生日期<input name="date" type="date" value="${escape(data.record_filters?.date || '')}"></label><label>类型<select name="kind"><option value="">全部</option>${Object.entries(kindLabels).map(([key,label]) => `<option value="${key}" ${data.record_filters?.kind === key ? 'selected' : ''}>${label}</option>`).join('')}</select></label>${button('筛选','search','type="submit"')}${link('清除','close',base()+termQuery()+'&panel=records')}</form>${recordsTable(data.records)}${pagination()}${data.august_years?.length ? `<p class="legacy-august-link">${icon('history')}8 月旧记录单独只读：${data.august_years.map(year => `<a href="${base()}august/?year=${year}">${year} 年 8 月</a>`).join(' · ')}</p>` : ''}</section>` +
       (!data.historical ? '<section id="public-report-panel" class="public-report-panel" aria-label="公开成绩报告"></section>' : '');
     const renderStudents = () => {
       const search = q('#student-search').value.trim().toLocaleLowerCase();
@@ -291,7 +296,7 @@
     });
     renderMonthlyOverview();
     renderPublicReport();
-    if (new URL(location.href).searchParams.has('page')) q('#tab-records').click();
+    if (new URL(location.href).searchParams.has('page') || new URL(location.href).searchParams.get('panel') === 'records') q('#tab-records').click();
     else if (data.monthly_overview?.months?.length) q('#tab-monthly').click();
   }
   function renderPublicReport() {
@@ -374,14 +379,14 @@
   }
   function recordPage() {
     const draft = currentDraft(), record = data.record || {}, editable = writable();
-    const subtitle = data.readonly ? '历史学期仅供查看，记录和分数已经固定。' : '直接点选状态，核对人数后一次保存。保存即计分。';
-    root.innerHTML = heading(record.id ? (data.readonly ? '查看记录' : '修正日常记录') : '快速录入', subtitle, kindIcons[recordKind], editable ? `<span class="badge" id="record-grant-badge">${icon('key')}${owner() ? '班主任已授权' : '班委 · 3小时授权'}</span>` : '', '录入 · 日常表现') +
-      `<div class="entry-types" role="group" aria-label="记录类型">${Object.entries(kindLabels).map(([key,label]) => `<button type="button" class="type-button" data-kind="${key}" aria-pressed="${recordKind === key}" ${draft.saving || (data.readonly && recordKind !== key) ? 'disabled' : ''}>${icon(kindIcons[key])}${label}</button>`).join('')}</div>` +
+    const subtitle = data.record_return_url ? '8 月旧记录只读；不参与学期计分，仅展示当时明确保存的个人条目。' : data.readonly ? '历史学期仅供查看，记录和分数已经固定。' : '直接点选状态，核对人数后一次保存。保存即计分。';
+    root.innerHTML = heading(record.id ? (data.readonly ? '查看记录' : '修正日常记录') : '快速录入', subtitle, kindIcons[recordKind], editable ? `<span class="badge" id="record-grant-badge">${icon('key')}${owner() ? '班主任已授权' : '班委 · 3小时授权'}</span>` : '', data.record_return_url ? '历史 · 8 月旧记录' : '录入 · 日常表现') +
+      `<div class="entry-types" role="group" aria-label="记录类型">${Object.entries(kindLabels).map(([key,label]) => `<button type="button" class="type-button" data-kind="${key}" aria-pressed="${recordKind === key}" ${draft.saving || record.id || data.readonly ? 'disabled' : ''}>${icon(kindIcons[key])}${label}</button>`).join('')}</div>` +
       `<div class="form-grid"><label class="field"><span>${icon('edit')}记录名称</span><input id="record-name" maxlength="64" required value="${escape(draft.name)}" placeholder="例如：专业课 · 上午" ${draftLocked(draft) ? 'disabled' : ''}></label><label class="field"><span>${icon('calendar')}发生日期</span><input id="record-date" type="date" required value="${escape(draft.date)}" ${data.start_date ? `min="${escape(data.start_date)}"` : ''} ${data.today ? `max="${escape(data.today)}"` : ''} ${draftLocked(draft) ? 'disabled' : ''}></label></div>` +
       `<label class="field"><span>${icon('book')}详情 · 可选</span><textarea id="record-details" maxlength="500" rows="3" placeholder="补充地点、课程或事件说明；旧记录可留空。" ${draftLocked(draft) ? 'disabled' : ''}>${escape(draft.details)}</textarea></label>` +
       `<div class="toolbar"><div class="entry-context"><span>${escape(data.term?.label || '')} · 学生名单</span></div><div class="student-list-tools"><label class="visually-hidden" for="entry-search">搜索姓名或学号</label><input class="search" id="entry-search" type="search" placeholder="搜索姓名或学号">${studentSortControl('entry-sort',entrySort)}</div></div><div id="entry-rows" class="roster" aria-label="学生记录录入"></div>` +
       `<div class="entry-review"><div id="entry-count" class="entry-count" aria-live="polite"></div><div id="entry-exceptions" class="exceptions"></div><div class="actions"><span id="entry-status" class="entry-status" role="status"></span><div class="actions">${editable ? button('撤销上一步','undo','id="undo-record" disabled') + button('核对无误，保存','save','id="save-record"','primary') + button('下一条','plus','id="next-record" hidden') : ''}</div></div></div><p id="entry-message" class="form-message" role="alert"></p>` +
-      `<div class="actions">${link('返回班级','book',base()+termQuery())}${button('刷新名单并重新点名','refresh','id="refresh-roster" hidden','primary')}${record.id ? `<a id="view-latest" class="button" href="${recordHref(record)}" target="_blank" rel="noopener" hidden>${icon('eye')}在新页面核对最新记录</a>` : ''}${record.id && owner() && editable ? button('删除这条记录','trash','id="delete-record"','danger') : ''}</div>`;
+      `<div class="actions">${link(data.record_return_url ? '返回 8 月旧记录' : '返回班级','book',data.record_return_url || base()+termQuery())}${button('刷新名单并重新点名','refresh','id="refresh-roster" hidden','primary')}${record.id ? `<a id="view-latest" class="button" href="${recordHref(record)}" target="_blank" rel="noopener" hidden>${icon('eye')}在新页面核对最新记录</a>` : ''}${record.id && owner() && editable ? button('删除这条记录','trash','id="delete-record"','danger') : ''}</div>`;
     renderEntryRows(); entrySummary(); updateExpiry();
     q('#entry-search').addEventListener('input', renderEntryRows);
     q('#entry-sort').addEventListener('change',event => { entrySort = event.target.value; renderEntryRows(); });
@@ -395,7 +400,7 @@
       qa('[data-value]',group).find(btn => btn.dataset.value === current.values[id])?.focus({preventScroll:true});
       entrySummary();
     });
-    qa('[data-kind]',root).forEach(el => el.addEventListener('click', () => { if (recordKind === el.dataset.kind) return; recordKind = el.dataset.kind; recordPage(); qa('[data-kind]',root).find(btn => btn.dataset.kind === recordKind)?.focus(); }));
+    if (!record.id && !data.readonly) qa('[data-kind]',root).forEach(el => el.addEventListener('click', () => { if (recordKind === el.dataset.kind) return; recordKind = el.dataset.kind; recordPage(); qa('[data-kind]',root).find(btn => btn.dataset.kind === recordKind)?.focus(); }));
     q('#record-name').addEventListener('input', event => { const current = currentDraft(); current.name = event.target.value; current.dirty = true; });
     q('#record-details').addEventListener('input', event => { const current = currentDraft(); current.details = event.target.value; current.dirty = true; });
     q('#record-date').addEventListener('input', event => { const current = currentDraft(); current.date = event.target.value; current.dirty = true; });
@@ -493,7 +498,7 @@
       `<div class="metrics"><div><div class="metric-label">${selected ? '所选月分' : '学期分数'}</div><div class="metric-value">${scoreBadge(selected ? selected.score : student.score,selected ? selected.score_base : student.score_base ?? monthly.base,null,selected ? 2 : data.policy?.average_decimal_places ?? 2)}</div><div class="metric-note">${selected ? escape(selected.label) : '各计分月分数的平均值'}</div></div><div><div class="metric-label">${selected ? '当期月度基础分' : '计分月份'}</div><div class="metric-value">${selected ? fmt(selected.score_base) : months.length}<small>${selected ? ' 分' : ' 个月'}</small></div><div class="metric-note">进入自然月即有基础分</div></div><div><div class="metric-label">评分规则</div><div class="metric-value">${number(data.policy?.version) > 0 ? `v${escape(data.policy.version)}` : policyIdentity() === '默认规则' ? '默认' : '当期'}</div><div class="metric-note">${escape(policyCaption())}</div></div></div>` +
       `<div class="detail-formula">月分依据：月度基础分 + 活动加分 − 考勤扣分 − 违纪扣分<p>${escape(monthlySummary(monthly))}。先按当期上下限确定每月分数，再取学期平均。无活动计分月采用当期基础分。</p></div><div class="section-title">${icon('clipboard')}<h2>${selected ? '所选月份' : '所选学期'}次数明细</h2></div>${scoreLegend()}${selectedCounts ? `<div class="detail-counts">${countFields.map(key => `<div><span>${labels[key]}</span>${countBadge(selectedCounts[key],key)}</div>`).join('')}</div>` : empty('暂无可用次数明细',selected?.reason || '具体依据尚待核实。','clipboard')}<div class="section-title" style="margin-top:26px">${icon('calendar')}<h2>自然月分值</h2></div>` +
       (months.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>月份</th><th>活动加分</th><th>扣分</th><th>月分</th></tr></thead><tbody>${months.map(month => `<tr${selected?.key === month.key ? ' class="selected-month-row"' : ''}><td><a href="${escape(monthHref(month))}">${escape(month.label || month.key)}</a></td><td class="number"><span class="amount-reward">${month.addition !== undefined ? `+${fmt(month.addition)}` : monthlyDelta(month.counts,'add')}</span></td><td class="number"><span class="amount-deduction">${month.deduction !== undefined ? `−${fmt(month.deduction)}` : monthlyDelta(month.counts,'subtract')}</span></td><td class="number">${scoreBadge(month.score,month.score_base ?? monthly.base,monthHref(month))}</td></tr>`).join('')}</tbody></table></div>` : empty('暂无月份明细','具体计分依据以当期汇总为准。','calendar')) +
-      `<div class="section-title" style="margin-top:28px">${icon('history')}<h2>${selected ? escape(selected.label)+' · ' : ''}日常记录</h2></div>${recordsTable(data.records,{studentMode:true})}${pagination()}`;
+      `<div class="section-title" style="margin-top:28px">${icon('history')}<h2>${selected ? escape(selected.label)+' · ' : ''}日常记录</h2></div><form class="record-filters" method="get"><input type="hidden" name="term" value="${escape(data.term?.key || '')}">${selected ? `<input type="hidden" name="month" value="${escape(selected.key)}">` : ''}<label>名称<input name="name" type="search" maxlength="64" value="${escape(data.record_filters?.name || '')}" placeholder="查找记录"></label><label>发生日期<input name="date" type="date" value="${escape(data.record_filters?.date || '')}"></label><label>类型<select name="kind"><option value="">全部</option>${Object.entries(kindLabels).map(([key,label]) => `<option value="${key}" ${data.record_filters?.kind === key ? 'selected' : ''}>${label}</option>`).join('')}</select></label>${button('筛选','search','type="submit"')}${link('清除','close',selected ? monthHref(selected) : data.term_detail_url)}</form>${recordsTable(data.records,{studentMode:true})}${pagination()}`;
   }
   function monthlyDelta(counts, direction) {
     if (!counts || !data.policy?.weights) return '—';
@@ -600,30 +605,34 @@
       submit.disabled = !policyPending && !policyPreview;
     } finally { policySaving = false; lockPolicy(!!policyPending); }
   }
+  let modalDirty = false, modalPending = false, modalBusy = false;
   function modalForm({title,description,fields,submitLabel='确认保存',danger=false,url,build,onSuccess,onReady}) {
     const dialog = q('#action-dialog'); const previousFocus = document.activeElement;
     dialog.innerHTML = `<form id="action-form"><div class="section-title">${icon(danger ? 'warning' : 'edit')}<h2 id="action-title">${escape(title)}</h2></div><p>${escape(description)}</p>${fields}<p id="action-message" class="form-message" role="alert"></p><div class="actions">${button('取消','close','type="button" id="action-cancel"')}${button(submitLabel,danger ? 'trash' : 'save','type="submit"',danger ? 'danger' : 'primary')}</div></form>`;
     let pending = null, busy = false;
+    modalDirty = false; modalPending = false; modalBusy = false;
     const form = q('#action-form'), cancel = q('#action-cancel'), submit = q('[type=submit]',form);
-    const attemptClose = event => { if (busy || pending) { event?.preventDefault(); showMessage('#action-message','请先确认原提交的结果；输入和提交编号仍保留。',true); return; } form.reset(); dialog.close(); previousFocus?.focus(); };
+    form.addEventListener('input',() => { modalDirty = true; });
+    form.addEventListener('change',() => { modalDirty = true; });
+    const attemptClose = event => { event?.preventDefault(); if (busy || pending) { showMessage('#action-message','请先确认原提交的结果；输入和提交编号仍保留。',true); return; } if (modalDirty && !confirm('这项输入尚未保存，确认放弃并关闭吗？')) return; modalDirty = false; form.reset(); dialog.close(); previousFocus?.focus(); };
     cancel.addEventListener('click',attemptClose);
     dialog.oncancel = attemptClose;
     form.addEventListener('submit',async event => {
       event.preventDefault(); if (busy) return;
       if (!pending) {
         if (!form.reportValidity()) return;
-        try { pending = {submission_id:uuid(),...actorContext(),term_key:data.term?.key,...build(form)}; } catch (error) { showMessage('#action-message',error.message,true); return; }
+        try { pending = {submission_id:uuid(),...actorContext(),term_key:data.term?.key,...build(form)}; modalPending = true; } catch (error) { showMessage('#action-message',error.message,true); return; }
       }
-      busy = true; submit.disabled = true; cancel.disabled = true; qa('input,textarea,select',form).forEach(el => el.disabled = true);
+      busy = true; modalBusy = true; submit.disabled = true; cancel.disabled = true; qa('input,textarea,select',form).forEach(el => el.disabled = true);
       showMessage('#action-message','正在保存…');
       try {
-        const result = await request(url,pending); const submitted = pending; pending = null; form.reset(); dialog.close();
+        const result = await request(url,pending); const submitted = pending; pending = null; modalPending = false; modalDirty = false; modalBusy = false; form.reset(); dialog.close();
         try { await onSuccess(result,submitted); } finally { if ('password' in submitted) submitted.password = ''; }
       } catch (error) {
         explain(error,'#action-message');
-        if (error.status && error.status !== 401) pending = null;
+        if (error.status && error.status !== 401) { pending = null; modalPending = false; }
         submit.innerHTML = icon(pending ? 'refresh' : 'save')+(pending ? '重试原提交' : submitLabel);
-      } finally { busy = false; submit.disabled = false; cancel.disabled = !!pending; qa('input,textarea,select',form).forEach(el => el.disabled = !!pending); }
+      } finally { busy = false; modalBusy = false; submit.disabled = false; cancel.disabled = !!pending; qa('input,textarea,select',form).forEach(el => el.disabled = !!pending); }
     });
     dialog.showModal(); if (onReady) onReady(form); q('input,button',dialog)?.focus();
   }
@@ -834,16 +843,16 @@
     const title = error.title || (['401','unauthorized','authorization_expired'].includes(code) ? '授权已失效' : ['403','forbidden'].includes(code) ? '当前身份无法查看此页' : ['404','not_found'].includes(code) ? '没有找到这项内容' : '暂时无法完成操作');
     root.innerHTML = `<section class="error-panel">${icon('warning')}<div class="eyebrow">${escape(code || '笃行')}</div><h1>${escape(title)}</h1><p>${escape(error.message || '请返回工作台，确认班级与当前授权后重新进入。')}</p><div class="actions">${link('返回工作台','home','/')}${data.actor?.role === 'anonymous' ? link('班主任登录','login','/login/') : ''}</div></section>`;
   }
-  function hasUnsavedChanges() { return policyDirty || policyPending || policySaving || bulkDirty || bulkPending || bulkSaving || Array.from(drafts.values()).some(draft => draft.dirty || draft.pending || draft.saving); }
+  function hasUnsavedChanges() { return modalDirty || modalPending || modalBusy || policyDirty || policyPending || policySaving || bulkDirty || bulkPending || bulkSaving || Array.from(drafts.values()).some(draft => draft.dirty || draft.pending || draft.saving); }
   window.addEventListener('beforeunload',event => { if (hasUnsavedChanges()) { event.preventDefault(); event.returnValue = ''; } });
   function navigateFromRules(url, restore = () => {}) {
     const recordChanged = page === 'record' && Array.from(drafts.values()).some(draft => draft.dirty || draft.pending || draft.saving);
     const rosterChanged = page === 'roster' && (bulkDirty || bulkPending || bulkSaving);
     const ruleChanged = page === 'rules' && (policyDirty || policyPending || policySaving);
     if (!recordChanged && !rosterChanged && !ruleChanged) { location.assign(url); return; }
-    if (policySaving || policyPending || bulkSaving || bulkPending || Array.from(drafts.values()).some(draft => draft.saving || draft.pending)) {
+    if (modalBusy || modalPending || policySaving || policyPending || bulkSaving || bulkPending || Array.from(drafts.values()).some(draft => draft.saving || draft.pending)) {
       restore();
-      showMessage(page === 'record' ? '#entry-message' : page === 'rules' ? '#policy-message' : '#roster-message','提交结果尚未确认，请先核对或重试原提交。',true);
+      showMessage(modalBusy || modalPending ? '#action-message' : page === 'record' ? '#entry-message' : page === 'rules' ? '#policy-message' : '#roster-message','提交结果尚未确认，请先核对或重试原提交。',true);
       return;
     }
     const dialog = q('#action-dialog');
@@ -866,7 +875,7 @@
   },true);
   q('form[action="/logout/"]')?.addEventListener('submit',async event => {
     event.preventDefault();
-    if (policySaving || policyPending || bulkSaving || bulkPending || Array.from(drafts.values()).some(draft => draft.saving || draft.pending)) { toast('提交结果尚未确认，请先核对或重试原提交。'); return; }
+    if (modalBusy || modalPending || policySaving || policyPending || bulkSaving || bulkPending || Array.from(drafts.values()).some(draft => draft.saving || draft.pending)) { toast('提交结果尚未确认，请先核对或重试原提交。'); return; }
     if (hasUnsavedChanges() && !confirm('本页有尚未保存的输入。确认退出并放弃这些草稿吗？')) return;
     const submit = q('button',event.currentTarget); submit.disabled = true;
     try { const result = await request('/logout/',{}); drafts.clear(); policyDirty = false; bulkDirty = false; bulkPending = null; location.assign(result.url || '/'); }
@@ -879,12 +888,12 @@
     navigateFromRules(code ? base(code)+(paths[page] || '')+termQuery() : '/'+termQuery(),() => { event.target.value = data.classroom?.code || ''; });
   });
   q('#term-switch')?.addEventListener('change',event => {
-    const url = new URL(location.href); url.searchParams.set('term',event.target.value); url.searchParams.delete('page');
+    const url = new URL(location.href); url.searchParams.set('term',event.target.value); url.searchParams.delete('page'); url.searchParams.delete('month'); url.searchParams.delete('date');
     if (page === 'record') { navigateFromRules(base()+url.search,() => { event.target.value = data.term?.key || ''; }); return; }
     navigateFromRules(url.pathname+url.search,() => { event.target.value = data.term?.key || ''; });
   });
   hydrateIcons(); updateExpiry();
-  const pages = {dashboard:dashboardPage,class:classPage,record:recordPage,student:studentPage,rules:rulesPage,roster:rosterPage,events:eventsPage,login:loginPage,authorize:authorizePage,error:errorPage};
+  const pages = {dashboard:dashboardPage,class:classPage,august:augustPage,record:recordPage,student:studentPage,rules:rulesPage,roster:rosterPage,events:eventsPage,login:loginPage,authorize:authorizePage,error:errorPage};
   (pages[page] || errorPage)(); root.setAttribute('aria-busy','false');
   setInterval(updateExpiry,60000);
 })();

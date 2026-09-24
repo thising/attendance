@@ -35,6 +35,19 @@
 
 /* 学期和月度汇总使用相同的三组双层表头；保留完整九项数据。 */
 .table.overview-table,.table.overview-table.monthly-overview-table{min-width:880px;table-layout:fixed}
+.overview-scroll{max-height:min(72vh,780px);overflow:auto;scrollbar-gutter:stable}
+.overview-scroll .overview-table thead tr:first-child th{position:sticky;top:0;z-index:4}
+.overview-scroll .overview-table thead tr:nth-child(2) th{position:sticky;top:34px;z-index:4;background:var(--bg)}
+.overview-scroll .overview-table thead th.identity-student{z-index:6!important}
+.count-mark.neutral{color:var(--muted);background:var(--bg);border:1px solid var(--line)}
+.record-filters{display:flex;align-items:end;gap:10px;flex-wrap:wrap;margin:0 0 16px}
+.record-filters label{display:grid;gap:5px;font-size:11px;color:var(--muted)}
+.record-filters input,.record-filters select{min-height:42px}
+.record-filters input[type=search]{width:210px;max-width:100%}
+.legacy-august-link{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;margin:18px 0;color:var(--muted)}
+.legacy-august-link .icon{width:16px;height:16px}
+.mobile-record-status{display:none}
+@media(max-width:480px){.mobile-record-status{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink);margin-top:5px}.mobile-record-status .icon{width:14px;height:14px}.record-filters label{flex:1 1 135px}.record-filters input[type=search]{width:100%}}
 .table.overview-table th,.table.overview-table td{padding:7px 4px;text-align:center}
 .table.overview-table .identity-student{width:170px;min-width:170px;text-align:left;padding-left:10px;position:sticky;left:0;z-index:2;box-shadow:2px 0 0 var(--line)}
 .table.overview-table tbody th.identity-student{background:var(--paper);border-bottom:1px solid var(--line);font-weight:400}

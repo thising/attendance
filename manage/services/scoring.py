@@ -9,6 +9,7 @@ from manage.models import (Activity, ClassTerm, Report, RosterVersion, ScoringPo
     OwnerScoringSettings, WEIGHT_DEFAULTS, COUNT_FIELDS, SummaryCount)
 from . import calendar
 from .errors import BusinessError
+from .read_snapshot import consistent_read, read_snapshot
 
 MONTHLY_DEFAULTS = {'base': '60.00', 'minimum': '0.00', 'maximum': None}
 
@@ -21,7 +22,7 @@ def average_display(value, places):
     return format(Decimal(value).quantize(Decimal(1).scaleb(-places), rounding=ROUND_HALF_UP), f'.{places}f')
 
 
-@transaction.atomic
+@consistent_read
 def policy_for(owner_id, term):
     version = ScoringPolicyVersion.objects.filter(owner_id=owner_id,
         effective_term_start__lte=term.start).order_by('-effective_term_start', '-id').first()
@@ -115,8 +116,17 @@ def snapshot_activities(classroom, term):
             for a in activities]
 
 
-@transaction.atomic
 def class_report(classroom, term, today=None, weights=None, monthly=None):
+    today = today or calendar.business_today()
+    if term.end <= today:
+        # A completed term may need to create its one immutable snapshot.
+        with transaction.atomic():
+            return _class_report(classroom, term, today, weights, monthly)
+    with read_snapshot():
+        return _class_report(classroom, term, today, weights, monthly)
+
+
+def _class_report(classroom, term, today, weights, monthly):
     today = today or calendar.business_today()
     ended = term.end <= today
     archive = ClassTerm.objects.select_for_update().filter(inclass=classroom, term_key=term.key).first() if ended else None

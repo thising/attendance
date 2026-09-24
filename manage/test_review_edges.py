@@ -96,6 +96,11 @@ class ReviewEdgeTests(TransactionTestCase):
             cursor.execute('PRAGMA busy_timeout = 25')
         try:
             blocker.execute('BEGIN IMMEDIATE')
+            # A writer reservation must not block a consistent read.
+            readable = client.get(f'/classes/{classroom.code}/?format=json')
+            self.assertEqual(readable.status_code, 200)
+            blocker.rollback()
+            blocker.execute('BEGIN EXCLUSIVE')
             json_response = client.get(f'/classes/{classroom.code}/?format=json')
             self.assertEqual(json_response.status_code, 503)
             self.assertEqual(json_response.json()['error']['code'], 'database_busy')
