@@ -4,7 +4,7 @@
 
 当前为本地验收版本，未部署。唯一生效的改造依据是 [OpenSpec 提案](openspec/changes/modernize-attendance-management/proposal.md)，完成范围与发布限制见 [实施验收记录](openspec/changes/modernize-attendance-management/implementation-validation.md) 和 [任务清单](openspec/changes/modernize-attendance-management/tasks.md)。
 
-2026-09-24 17:04（北京时间）从VPS207的`managedb.sqlite3`只读取得新的固定审查快照：5班、243人、64条活动、155条学生报告，243人九类次数及分数与源缓存逐项一致。SHA-256、导入和开放问题见[实施验收 B1](openspec/changes/modernize-attendance-management/implementation-validation.md)。本地 [8005最新隔离审查副本](http://127.0.0.1:8005/?term=2026-autumn)展示该取样；[8002前一取样](http://127.0.0.1:8002/)仍是63活动/110报告，[8003旧版只读对照](http://127.0.0.1:8003/index.html)不变。审查账号资料只在被 Git 忽略的`.local/audits/vps207-20260923/ui-access.json`，8001仍是原演示环境。代码以本地标签`duxing-local-baseline-20260924`固定，未推送或部署；线上继续录入时数据会变化。新版包含匿名只读报告、五类Top 3、工作台筛选/CSV及统一视觉文案。**用户要求暂不开展线上替换；生产迁移谱系与默认迁移链不兼容，正式桥接尚待集成，不得直接对生产库运行下方开发初始化命令。**
+2026-09-24 17:04（北京时间）从VPS207的`managedb.sqlite3`只读取得新的固定审查快照：5班、243人、64条活动、155条学生报告，243人九类次数及分数与源缓存逐项一致。SHA-256、导入和开放问题见[实施验收 B1](openspec/changes/modernize-attendance-management/implementation-validation.md)。本地 [8005最新隔离审查副本](http://127.0.0.1:8005/?term=2026-autumn)展示该取样；[8002前一取样](http://127.0.0.1:8002/)仍是63活动/110报告，[8003旧版只读对照](http://127.0.0.1:8003/index.html)不变。审查账号资料只在被 Git 忽略的`.local/audits/vps207-20260923/ui-access.json`，8001仍是原演示环境。代码提交`533f9c2`及标签`duxing-local-baseline-20260924`已推送至 GitHub `codex/duxing-modernization` 分支，未部署；线上继续录入时数据会变化。新版包含匿名只读报告、五类Top 3、工作台筛选/CSV及统一视觉文案。**用户要求暂不开展线上替换；生产迁移谱系与默认迁移链不兼容，正式桥接尚待集成，不得直接对生产库运行下方开发初始化命令。**
 
 ## 本地运行
 

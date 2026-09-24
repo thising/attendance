@@ -1,6 +1,6 @@
 # 笃行 · 学生操行管理系统改造提案
 
-状态：**2026-09-24 B1 本地全量复核并固定代码/数据审查基线；线上替换明确暂停，待用户后续指令**。新版代码以本地 Git 标签 `duxing-local-baseline-20260924` 固定，`00e487b` 仅是线上旧版及实施分支的父提交；数据基线与问题状态见[实施验收 B1](implementation-validation.md)和[审计 B1](production-data-audit.md)。R10公开报告持久化快照、历史只读和Agent延期继续有效；发布门槛见[发布准备](release.md)。
+状态：**2026-09-24 B1 全量复核并固定代码/数据审查基线；代码分支及标签已推送 GitHub，线上替换明确暂停**。新版代码以提交 `533f9c2` 和标签 `duxing-local-baseline-20260924` 固定，`00e487b` 仅是线上旧版及实施分支的父提交；数据基线与问题状态见[实施验收 B1](implementation-validation.md)和[审计 B1](production-data-audit.md)。R10公开报告持久化快照、历史只读和Agent延期继续有效；发布门槛见[发布准备](release.md)。
 
 ## 当前任务：B1 审查基线（2026-09-24）
 
