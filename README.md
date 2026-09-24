@@ -9,6 +9,7 @@
 ## 本地运行
 
 公开报告使用数据库预生成快照，业务提交后更新；新站已配置北京时间 00:01 月初边界刷新和 04:00 一致性校验。目标机路径、运行环境和回滚边界见 [部署契约](deploy/README.md) 与 [发布记录](openspec/changes/modernize-attendance-management/release.md)。
+每日 04:20 在服务器本机另存一份私有数据库与匹配环境文件；首次备份和隔离恢复已核验。异地备份尚待指定目标。
 
 运行基线：Python 3.12、Django 5.2；依赖以 `requirements.txt` / `requirements-dev.txt` 为准。已有个人 `Pipfile` 文件保留，不作为本版本运行依据。
 
