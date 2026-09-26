@@ -5,6 +5,7 @@ from .access import get_class, actor_for, owner_actor, require_ready, validate_c
 from .errors import BusinessError
 from .rules import ensure_default_policy
 from .report_snapshots import mark_report_dirty
+from .scoring import roster_for
 from .writes import atomic_write, once, event, require_revision
 
 
@@ -70,17 +71,45 @@ def change_roster(request,code,payload):
                 seen.add(number)
                 rows.append(fields)
             if not 1<=len(rows)<=1000:raise BusinessError('invalid_roster','请填写1–1000名学生。')
-            if Student.objects.filter(inclass=classroom,number__in=seen).exists():
-                raise BusinessError('duplicate_student_number','批量名单中有学号已存在于本班，请核对后重试。',409)
-            if action=='preview_add':return {'students':rows,'count':len(rows)}
-            added=Student.objects.bulk_create([Student(inclass=classroom,**fields) for fields in rows])
-            RosterVersion.objects.bulk_create([RosterVersion(student=s,inclass=classroom,effective_term_start=current.start,
-                number=s.number,name=s.name,sex=s.sex) for s in added])
+            existing={s.number:s for s in Student.objects.filter(inclass=classroom,number__in=seen)}
+            active_ids={row['id'] for row in roster_for(classroom,current)}
+            duplicate_line=next((index for index,row in enumerate(rows,1)
+                if row['number'] in existing and existing[row['number']].pk in active_ids),None)
+            if duplicate_line is not None:
+                raise BusinessError('duplicate_student_number','批量名单中有学号已存在于本班当前名单，请核对后重试。',409,
+                                    {'line':duplicate_line})
+            reactivate_count=len(existing)
+            if action=='preview_add':return {'students':rows,'count':len(rows),'reactivate_count':reactivate_count}
+            restored=[]
+            for fields in rows:
+                student=existing.get(fields['number'])
+                if student:
+                    student.name=fields['name'];student.sex=fields['sex'];student.active=True;student.revision+=1
+                    restored.append(student)
+            if restored:Student.objects.bulk_update(restored,['name','sex','active','revision'])
+            new_rows=[fields for fields in rows if fields['number'] not in existing]
+            try:created=Student.objects.bulk_create([Student(inclass=classroom,**fields) for fields in new_rows])
+            except IntegrityError:
+                raise BusinessError('duplicate_student_number','名单提交期间出现重复学号，请刷新后重试。',409)
+            added=restored+created
+            versions={v.student_id:v for v in RosterVersion.objects.filter(
+                student_id__in=[s.pk for s in added],effective_term_start=current.start)}
+            version_updates=[];version_creates=[]
+            for student in added:
+                version=versions.get(student.pk)
+                if version:
+                    version.inclass=classroom;version.number=student.number;version.name=student.name
+                    version.sex=student.sex;version.active=True;version_updates.append(version)
+                else:version_creates.append(RosterVersion(student=student,inclass=classroom,
+                    effective_term_start=current.start,number=student.number,name=student.name,sex=student.sex,active=True))
+            if version_updates:RosterVersion.objects.bulk_update(version_updates,['inclass','number','name','sex','active'])
+            if version_creates:RosterVersion.objects.bulk_create(version_creates)
             classroom.revision+=1
             classroom.save(update_fields=['revision'])
             event(actor,classroom,'roster_add',f'批量新增{len(added)}名学生，计入当前学期全部已进入月份',len(added),revision=classroom.revision)
             mark_report_dirty(classroom)
-            return {'count':len(added),'revision':classroom.revision,'url':f'/classes/{code}/roster/'}
+            return {'count':len(added),'reactivate_count':reactivate_count,
+                    'revision':classroom.revision,'url':f'/classes/{code}/roster/'}
         if action not in ('add','edit','remove'):
             raise BusinessError('invalid_action','不支持此名单操作。')
         data=payload.get('student',{})
@@ -99,7 +128,12 @@ def change_roster(request,code,payload):
             fields=student_input(data)
             duplicate=Student.objects.filter(inclass=classroom,number=fields['number'])
             if student:duplicate=duplicate.exclude(pk=student.pk)
-            if duplicate.exists():raise BusinessError('duplicate_student_number','本班已有此学号，请核对名单。',409)
+            duplicate_student=duplicate.first()
+            if duplicate_student:
+                active_ids={row['id'] for row in roster_for(classroom,current)}
+                if action!='add' or duplicate_student.pk in active_ids:
+                    raise BusinessError('duplicate_student_number','本班已有此学号，请核对名单。',409)
+                student=duplicate_student
             if student:
                 for k,v in fields.items():setattr(student,k,v)
                 student.active=True

@@ -2,6 +2,10 @@
 
 状态：2026-09-24 R13 已按用户新指令在独立的 unzip.work 阿里云服务器发布 `ams.unzip.work`；VPS207 旧站与其定时任务保持原状。下方 R12 及更早“暂不部署”文字属于发布前的历史阶段，不能作为当前状态。新站以用户明确选择的 17:04 旧库快照为数据截止点，旧站此后数据不自动同步。
 
+## R14 待发布变更（2026-09-26）
+
+当前分支新增班主任专用的清空当前学期数据、清空当前学期学生、删除空且无历史班级，以及批量导入重复判定反馈和已移出学生恢复。没有数据库结构迁移。上线前必须对**当时生产运行库与 `/etc/duxing/ams.env` 成套在线备份**并核验 SQLite 完整性；只替换版本化代码和静态资源，绝不覆盖 `/var/lib/duxing/managedb.sqlite3`。切换后只读核对现有班级/学生/活动/报告计数、真实账号访问、静态资源版本及服务日志；不以生产真实班级试点清空或删除。若回滚，保全切换后的运行库，切回 R13 代码即可；R14 没有迁移需要倒退。
+
 ## R13 实际部署与运行边界（2026-09-24）
 
 - 部署源码为提交 `070ef8f`，入口 `https://ams.unzip.work/`。独立 Nginx 虚拟主机复用 unzip.work 的 `*.unzip.work` Origin CA 与既有 Cloudflare 通配符解析；Gunicorn 仅监听 `127.0.0.1:8765`。服务账号 `duxing`，代码 `/opt/duxing/releases/070ef8f`，当前软链 `/opt/duxing/current`，数据库 `/var/lib/duxing/managedb.sqlite3`，私有环境 `/etc/duxing/ams.env`，虚拟环境 `/opt/duxing/venv`。环境包含独立的签名和班委凭据密钥与 `TZ=Asia/Shanghai`，均未输出或纳入 Git。

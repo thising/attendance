@@ -108,3 +108,12 @@ body.historical-view .table.overview-table .group-heading.group-activity,body.hi
 .sidebar-copyright a{color:inherit;text-decoration:underline;text-underline-offset:2px}
 .sidebar-copyright a:hover,.sidebar-copyright a:focus-visible{color:var(--accent)}
 @media(max-width:800px){.sidebar-copyright{margin-top:0}}
+
+.danger-zone{margin-top:30px;padding:22px;border:1px solid var(--accent);background:var(--tint)}
+.danger-zone>.section-title{margin-bottom:8px;color:var(--accent)}
+.danger-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:18px}
+.danger-actions article{display:flex;flex-direction:column;align-items:flex-start;min-width:0;padding:16px;background:var(--paper);border:1px solid var(--line)}
+.danger-actions article>strong{font-weight:600;color:var(--ink)}
+.danger-actions article>p{flex:1;margin:8px 0 15px;font-size:12px;line-height:1.7;color:var(--muted)}
+.danger-actions .button{width:100%}
+@media(max-width:800px){.danger-actions{grid-template-columns:1fr}}

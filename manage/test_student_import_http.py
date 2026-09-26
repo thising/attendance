@@ -108,7 +108,7 @@ class StudentImportHTTPTests(AccountFixtures, TestCase):
         preview = self.owner_client.post(self.roster_url(), self.roster_payload(text, action="preview_add"),
                                          content_type="application/json")
         self.assertEqual(preview.status_code, 200, preview.content)
-        self.assertEqual(preview.json()["data"], {"count": 2, "students": [
+        self.assertEqual(preview.json()["data"], {"count": 2, "reactivate_count": 0, "students": [
             {"number": "0001", "name": "合成甲", "sex": "female"},
             {"number": "0002", "name": "合成乙", "sex": "male"},
         ]})
@@ -262,3 +262,32 @@ class StudentImportHTTPTests(AccountFixtures, TestCase):
         rejected = self.owner_client.post(self.import_url(), self.upload_fields())
         self.assert_error(rejected, 409, "duplicate_student_number")
         self.assertEqual(self.snapshot(), before)
+
+    def test_removed_student_is_reactivated_without_creating_duplicate_identity(self):
+        created = self.owner_client.post(self.roster_url(), self.roster_payload(), content_type="application/json")
+        self.assertEqual(created.status_code, 200, created.content)
+        student = Student.objects.get(inclass=self.c, number="001")
+        original_id = student.pk
+        self.c.refresh_from_db()
+        removed = self.owner_client.post(self.roster_url(), {
+            "action": "remove", "student": {"id": student.pk}, "term_key": self.term_key,
+            "revision": self.c.revision, "submission_id": str(uuid4()),
+        }, content_type="application/json")
+        self.assertEqual(removed.status_code, 200, removed.content)
+        preview = self.owner_client.post(
+            self.roster_url(), self.roster_payload("001|更新姓名|女", action="preview_add"),
+            content_type="application/json",
+        )
+        self.assertEqual(preview.status_code, 200, preview.content)
+        self.assertEqual(preview.json()["data"]["reactivate_count"], 1)
+        committed = self.owner_client.post(
+            self.roster_url(), self.roster_payload("001|更新姓名|女"), content_type="application/json",
+        )
+        self.assertEqual(committed.status_code, 200, committed.content)
+        self.assertEqual(committed.json()["data"]["reactivate_count"], 1)
+        self.assertEqual(Student.objects.filter(inclass=self.c, number="001").count(), 1)
+        student.refresh_from_db()
+        self.assertEqual((student.pk, student.name, student.sex, student.active),
+                         (original_id, "更新姓名", "female", True))
+        version = RosterVersion.objects.get(student=student, effective_term_start=date(2026, 9, 1))
+        self.assertEqual((version.name, version.sex, version.active), ("更新姓名", "female", True))

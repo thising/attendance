@@ -13,6 +13,7 @@ urlpatterns = [
     path('classes/<str:code>/students/<int:student_id>/',views.student_detail,name='studentdetail'),
     path('classes/<str:code>/roster/',views.roster_page,name='students'),
     path('classes/<str:code>/roster/import/',views.import_students,name='importstudents'),
+    path('classes/<str:code>/management/',views.class_management,name='classmanagement'),
     path('classes/<str:code>/committee/',views.committee_accounts,name='committeeaccounts'),
     path('classes/<str:code>/committee/credentials/',views.committee_credentials,name='committeecredentials'),
     path('classes/<str:code>/events/',views.events_page,name='classevents'),

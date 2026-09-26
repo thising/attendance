@@ -63,7 +63,7 @@ class BulkRosterAndPerformanceTests(TestCase):
         before = self.snapshot()
         with CaptureQueriesContext(connection) as queries:
             result = self.submit(payload)
-        self.assertEqual(result, {"count": 2, "students": [
+        self.assertEqual(result, {"count": 2, "reactivate_count": 0, "students": [
             {"number": "001", "name": "合成甲", "sex": "male"},
             {"number": "002", "name": "合成乙", "sex": "female"},
         ]})

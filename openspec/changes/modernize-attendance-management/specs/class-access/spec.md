@@ -97,6 +97,32 @@
 - **WHEN** 提交版本早于当前记录版本
 - **THEN** 返回可恢复的冲突提示，保持当前数据不变
 
+### Requirement: Current-term destructive class management
+系统 SHALL 仅允许班主任对当前学期执行清空数据、清空学生和删除班级，并校验完整班级名称、班级 revision 与幂等提交编号。清空数据只删除当前学期业务事实及对应派生缓存；清空学生仅在当前学期无业务记录时移出当前名单；已有历史学期资料的班级不得删除。已结束学期快照、身份和成绩不得改写。
+
+#### Scenario: Clear current data with historical records
+- **WHEN** 班主任确认清空当前学期数据，班级另有已结束学期或8月旧记录
+- **THEN** 仅当前学期的考勤、活动、违纪和对应缓存被删除；学生名单、历史事实、历史快照和概要日志保留，并立即刷新当前公开报告
+
+#### Scenario: Clear students before records
+- **WHEN** 当前学期仍有业务记录时请求清空学生
+- **THEN** 系统拒绝并提示先清空数据；数据与名单均不改变
+
+#### Scenario: Delete a class with history
+- **WHEN** 班级仍有当前名单、当前记录或任何历史学期资料
+- **THEN** 系统拒绝删除；只有完全空且无历史的班级可删除，删除后其班委账号和公开链接立即失效
+
+### Requirement: Duplicate-safe bulk roster import
+系统 SHALL 在 Excel 上传、粘贴预览和最终提交中识别同批重复学号及本班当前名单重复学号，任一冲突使整批不写入；数据库唯一约束 SHALL 作为并发兜底。曾从当前学期移出的同学号学生再次导入时 SHALL 复用原身份并恢复在册，不创建重复学生。
+
+#### Scenario: Duplicate in file or current roster
+- **WHEN** 批量名单内部出现相同学号，或学号已在本班当前名单
+- **THEN** 预览或提交返回重复学号错误，整批学生均不写入
+
+#### Scenario: Re-import a removed student
+- **WHEN** 批量名单包含曾移出当前学期、当前不在册的同学号学生
+- **THEN** 预览标明恢复人数，提交复用原学生身份并以本次姓名、性别恢复在册
+
 
 ### Requirement: Owner-only reusable credential copying
 系统 SHALL 按用户授权将班委密码散列与加密副本分别保存，允许所属班主任随时读取并复制完整登录表达，其他身份禁止读取。

@@ -25,6 +25,7 @@ from manage.services import monthly
 from manage.services.public_reports import change_link, link_details, token_digest
 from manage.services.report_snapshots import get_current_report
 from manage.services.read_snapshot import read_snapshot_view
+from manage.services.class_management import manage_class, management_status
 
 
 def payload(request):
@@ -449,7 +450,15 @@ def roster_page(request,code):
     data['committee_accounts']=account_list(classroom)
     data['committee_limit']=ACTIVE_LIMIT
     data['committee_prefix']=classroom.committee_prefix
+    current=calendar.term_for_date(calendar.business_today())
+    data['class_management']=management_status(classroom,current) if current and term==current else None
     return page(request,'roster',data)
+
+
+@guarded
+@require_POST
+def class_management(request,code):
+    return success(manage_class(request,code,payload(request)))
 
 
 @guarded

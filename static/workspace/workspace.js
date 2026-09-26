@@ -648,7 +648,8 @@
       `<div class="notice">${icon(data.readonly ? 'lock' : 'calendar')}<div><strong>${data.readonly ? '已结束学期名单固定' : '新增仅加入当前学期'}</strong><p>${data.readonly ? '当前班级的名单变更不会改变本学期保存的身份与成绩。' : '新增学生参与当前学期全部已进入月份的计分，不补入已结束学期；姓名修改和移除不改动历史名单。'}</p></div></div>` +
       `<div class="toolbar"><div class="section-title">${icon('users')}<h2>在册学生 · ${students.length} 人</h2></div><div class="student-list-tools"><label class="visually-hidden" for="roster-search">搜索姓名或学号</label><input id="roster-search" class="search" type="search" placeholder="搜索姓名或学号">${studentSortControl('roster-sort')}</div></div><div id="roster-results"></div>` +
       (canManage ? `<details id="bulk-panel" class="bulk-panel"><summary>${icon('users')}批量新增学生</summary><p class="small">可下载模板填写后直接上传 Excel，也可复制学号、姓名、性别三列并粘贴，或每行填写“学号|姓名|男/女”。性别支持 male/female，一次最多1000人。</p><div class="import-tools"><a class="button" href="/static/downloads/ams-template-add-students.xlsx" download>${icon('download')}下载 Excel 模板</a><label class="field import-file-label">选择 Excel 文件<input id="roster-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label>${button('上传并预览','upload','id="upload-roster" type="button"')}</div><p class="small">请清除模板中的六行示例后填写，学号列保持文本格式，输入列不要使用公式；文件不超过2 MiB。上传仅解析和校验，确认预览后才会正式新增。</p><form id="bulk-form"><label class="field" for="bulk-text">待新增名单<textarea id="bulk-text" name="students_text" rows="7" maxlength="140000" required autocomplete="off" spellcheck="false" placeholder="可粘贴 Excel 的学号、姓名、性别三列&#10;2026001|林沐|女&#10;2026002|陈知夏|男"></textarea></label><div class="actions" style="margin-top:14px">${button('预览名单','eye','id="preview-bulk" type="button"')}<span class="small">预览无误后，一次性加入当前学期</span></div><div id="bulk-preview" hidden></div><div class="actions" style="margin-top:16px">${button('确认新增','save','id="save-bulk" type="submit" disabled','primary')}${button('继续下一批','plus','id="next-bulk" type="button" hidden')}</div><p id="bulk-message" class="form-message" role="alert"></p></form></details>` : '') +
-      (owner() ? '<section class="account-panel" id="committee-panel" aria-label="班委账号管理"></section>' : '');
+      (owner() ? '<section class="account-panel" id="committee-panel" aria-label="班委账号管理"></section>' : '') +
+      (canManage && data.class_management ? classDangerZone() : '');
     const render = () => {
       const search = q('#roster-search').value.trim().toLocaleLowerCase(); const list = sortedStudents(students.filter(s => `${s.name} ${s.number}`.toLocaleLowerCase().includes(search)),q('#roster-sort').value);
       q('#roster-results').innerHTML = list.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>学生</th><th>性别</th>${canManage ? '<th>当前学期管理</th>' : ''}</tr></thead><tbody>${list.map(s => `<tr><td>${studentIdentity(s)}</td><td>${escape(({male:'男',female:'女'})[s.sex] || '未记录')}</td>${canManage ? `<td><div class="actions end">${button('修改','edit',`data-edit-student="${escape(s.id)}"`)}${button('移除','trash',`data-remove-student="${escape(s.id)}"`,'danger')}</div></td>` : ''}</tr>`).join('')}</tbody></table></div>` : empty(search ? '没有匹配的学生' : '当前学期暂无学生',search ? '试试姓名或学号。' : canManage ? '点击新增学生添加当前学期名单。' : '该学期没有可展示的名单。','users');
@@ -663,6 +664,24 @@
     });
     if (canManage) setupBulkRoster();
     if (owner()) renderCommitteeAccounts();
+    if (canManage && data.class_management) setupClassDangerZone();
+  }
+
+  function classDangerZone() {
+    const state = data.class_management || {}, records = number(state.record_count), students = number(state.student_count);
+    const deleteReason = state.has_history ? '该班已有历史学期资料，按只读规则不能删除。' : records || students ? '请依次清空当前学期数据和学生后再删除。' : '班级为空且没有历史资料，可以删除。';
+    return `<section class="danger-zone" aria-labelledby="danger-zone-title"><div class="section-title">${icon('warning')}<h2 id="danger-zone-title">危险操作</h2></div><p class="small">以下操作仅限班主任，均需输入完整班级名称确认。历史学期快照不会被清空或改写。</p><div class="danger-actions"><article><strong>清空数据</strong><p>删除当前学期 ${records} 条考勤、活动和违纪记录，保留学生、班委账号及评分规则。</p>${button('清空当前学期数据','trash',`id="clear-class-data" ${records ? '' : 'disabled'}`,'danger')}</article><article><strong>清空学生</strong><p>移出当前学期 ${students} 名学生。存在业务记录时须先清空数据；历史身份仍保留。</p>${button('清空当前学期学生','users',`id="clear-class-students" ${students && !records ? '' : 'disabled'}`,'danger')}</article><article><strong>删除班级</strong><p>${escape(deleteReason)} 删除后班委账号和公开链接同时失效。</p>${button('删除班级','trash',`id="delete-class" ${state.can_delete ? '' : 'disabled'}`,'danger')}</article></div></section>`;
+  }
+
+  function setupClassDangerZone() {
+    const configs = {
+      clear_data:{button:'#clear-class-data',title:'清空当前学期数据',submit:'确认清空数据',description:`将永久删除「${data.classroom?.name || ''}」当前学期的考勤、活动和违纪记录，并立即重新计算成绩。学生名单、历史学期和操作日志保留。`},
+      clear_students:{button:'#clear-class-students',title:'清空当前学期学生',submit:'确认清空学生',description:`将「${data.classroom?.name || ''}」的所有学生移出当前学期名单。历史学期身份和成绩保留；此操作仅在当前学期已无业务记录时执行。`},
+      delete_class:{button:'#delete-class',title:'删除班级',submit:'确认删除班级',description:`将永久删除空班级「${data.classroom?.name || ''}」，班委账号与公开链接会立即失效。已有历史学期资料的班级不允许删除。`},
+    };
+    Object.entries(configs).forEach(([action,config]) => q(config.button)?.addEventListener('click',() => {
+      modalForm({title:config.title,description:config.description,fields:`<label class="field">输入完整班级名称以确认<input name="confirmation" required autocomplete="off" maxlength="30" placeholder="${escape(data.classroom?.name || '')}"></label>`,submitLabel:config.submit,danger:true,url:`${base()}management/`,build:form => ({action,revision:data.classroom?.revision ?? 0,confirmation:form.elements.confirmation.value.trim()}),onSuccess:result => location.assign(result.url || '/'),});
+    }));
   }
   let bulkDirty = false, bulkPending = null, bulkSaving = false;
   function setupBulkRoster() {
@@ -674,7 +693,7 @@
     const applyPreview = (result,text) => {
       preview = result.students || []; previewText = text;
       const el = q('#bulk-preview'); el.hidden = false; el.className = 'policy-preview';
-      el.innerHTML = `<div class="toolbar"><div class="section-title">${icon('eye')}<h2>待新增 ${number(result.count ?? preview.length)} 人</h2></div>${studentSortControl('bulk-sort',previewSort)}</div><div class="table-wrap bulk-preview-table"><table class="table"><thead><tr><th>学生</th><th>性别</th></tr></thead><tbody></tbody></table></div><p class="small" style="margin-top:13px">这批学生将参与当前学期全部已进入月份的计分，不加入已结束学期。整批同时成功或全部不写入。</p>`;
+      el.innerHTML = `<div class="toolbar"><div class="section-title">${icon('eye')}<h2>待新增 ${number(result.count ?? preview.length)} 人</h2></div>${studentSortControl('bulk-sort',previewSort)}</div><div class="table-wrap bulk-preview-table"><table class="table"><thead><tr><th>学生</th><th>性别</th></tr></thead><tbody></tbody></table></div><p class="small" style="margin-top:13px">已检查批次内重复学号和本班当前名单；任一重复都会整批拒绝。${number(result.reactivate_count) ? `其中 ${number(result.reactivate_count)} 人曾移出本学期，将恢复为在册并采用本次姓名、性别。` : ''} 这批学生将参与当前学期全部已进入月份的计分，不加入已结束学期。整批同时成功或全部不写入。</p>`;
       const renderPreviewRows = () => { q('#bulk-preview tbody').innerHTML = sortedStudents(preview,previewSort).map(s => `<tr><td>${studentIdentity(s)}</td><td>${s.sex === 'female' ? '女' : '男'}</td></tr>`).join(''); };
       q('#bulk-sort').addEventListener('change',event => { previewSort = event.target.value; renderPreviewRows(); }); renderPreviewRows();
       saveButton.disabled = !preview.length; bulkDirty = true; showMessage('#bulk-message','预览已通过，请核对名单与数量后确认新增。');
@@ -727,7 +746,7 @@
         data.classroom.revision = result.revision; data.students = [...readStudents(),...(result.students || [])];
         bulkPending = null; bulkDirty = false; preview = null; previewText = null;
         saveButton.innerHTML = icon('check')+'已新增'; q('#next-bulk').hidden = false;
-        showMessage('#bulk-message',`${result.replayed ? '此前同一次提交已完成，未重复新增。' : '整批名单已保存。'} 本次共 ${number(result.count)} 人。刷新页面可查看最新名单。`);
+        showMessage('#bulk-message',`${result.replayed ? '此前同一次提交已完成，未重复新增。' : '整批名单已保存。'} 本次共 ${number(result.count)} 人${number(result.reactivate_count) ? `，其中恢复 ${number(result.reactivate_count)} 人` : ''}。刷新页面可查看最新名单。`);
         const old = q('#bulk-refresh'); old?.remove();
         const refresh = document.createElement('a'); refresh.id = 'bulk-refresh'; refresh.className = 'button'; refresh.href = `${base()}roster/${termQuery()}`; refresh.innerHTML = icon('refresh')+'查看最新名单'; q('#next-bulk').parentElement.append(refresh);
       } catch (error) {
@@ -808,7 +827,7 @@
     },onReady:form => { if (action === 'create') form.elements.username.addEventListener('input',() => { q('#full-username-preview').textContent = `${data.committee_prefix}.${form.elements.username.value.trim().toLowerCase() || '…'}`; }); },onSuccess:(result,submitted) => { data.committee_accounts = result.accounts; data.committee_limit = result.limit || 5; data.committee_prefix = result.prefix || data.committee_prefix; renderCommitteeAccounts(); if (['create','reset_password'].includes(action) && result.receipt) showCredentialReceipt(result.receipt,submitted.password); else toast('班委账号设置已保存。'); }});
   }
   function eventsPage() {
-    const eventLabels = {record_created:'新增记录',record_updated:'修改记录',record_deleted:'删除记录',roster_add:'新增学生',roster_edit:'修改名单',roster_remove:'移除学生',rules_updated:'评分规则更新',committee_create:'新增班委账号',committee_update:'修改班委名称',committee_reset_password:'班委密码重置',committee_deactivate:'停用班委账号',committee_activate:'启用班委账号',committee_credentials_read:'读取登录信息用于复制',class_created:'创建班级',class_archived:'归档班级'};
+    const eventLabels = {record_created:'新增记录',record_updated:'修改记录',record_deleted:'删除记录',roster_add:'新增学生',roster_edit:'修改名单',roster_remove:'移除学生',class_data_cleared:'清空数据',class_students_cleared:'清空学生',rules_updated:'评分规则更新',committee_create:'新增班委账号',committee_update:'修改班委名称',committee_reset_password:'班委密码重置',committee_deactivate:'停用班委账号',committee_activate:'启用班委账号',committee_credentials_read:'读取登录信息用于复制',class_created:'创建班级',class_archived:'归档班级'};
     // Normalize only the old system-generated roster label; audit storage stays immutable.
     const eventSummary = event => event.kind === 'roster_add' ? String(event.summary).replace(/^(批量)?补录(?=\d+名学生)/,'$1新增') : event.summary;
     const events = data.events || []; const currentKind = new URL(location.href).searchParams.get('kind') || '';
