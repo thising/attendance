@@ -1,6 +1,6 @@
 # 技术与界面设计
 
-状态：R13 已于 2026-09-24 发布到 `ams.unzip.work`；真实账号登录已由用户在 2026-09-26 确认无误。R14 增加当前学期班级危险操作和批量名单重复判定反馈；业务边界以 [proposal.md](proposal.md) 为入口，完成状态以 [tasks.md](tasks.md) 为准，验证证据见 [implementation-validation.md](implementation-validation.md)。
+状态：R14 已于 2026-09-26 发布到 `ams.unzip.work`；真实账号登录已由用户确认无误。本批增加当前学期班级危险操作和批量名单重复判定反馈；业务边界以 [proposal.md](proposal.md) 为入口，完成状态以 [tasks.md](tasks.md) 为准，验证证据见 [implementation-validation.md](implementation-validation.md)。
 
 R4明确的实现偏差以审计报告为准，例如8月旧记录入口、历史学期导航、移动端状态及并发冲突恢复；下文设计描述不等于这些行为已经全部正确实现。生产采用2026年0001，不能套用本机2020年迁移链；独立副本桥接及来源边界见[发布准备](release.md)。
 
