@@ -112,8 +112,12 @@ def capacity(config, staging):
     if int(values['available_percent']) < 20:
         raise RuntimeError('NAS capacity is below 20 percent')
     stamp = datetime.fromisoformat(values['updated_at'])
+    if stamp.tzinfo is None:
+        raise RuntimeError('NAS capacity marker lacks a timezone')
     age = (now() - stamp).total_seconds()
-    if stamp.tzinfo is None or not 0 <= age <= 180:
+    # Independent NAS/VPS clocks can straddle a second boundary. Reject large
+    # drift while allowing a bounded future timestamp, not arbitrary freshness.
+    if not -30 <= age <= 180:
         raise RuntimeError('NAS capacity marker is stale')
     marker.unlink()
 

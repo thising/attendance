@@ -76,11 +76,22 @@ class NASBackupTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,'overdue'):nas_backup.execute(self.config,'retry')
 
     def test_capacity_is_fail_closed_for_low_or_stale_markers(self):
-        for percent,stamp in [(19,nas_backup.now()),(60,nas_backup.now()-timedelta(minutes=10))]:
+        for percent,stamp in [(19,nas_backup.now()),(60,nas_backup.now()-timedelta(minutes=10)),
+                              (60,nas_backup.now()+timedelta(minutes=2))]:
             def marker(config,args):
                 Path(args[-1]).write_text(f'available_percent={percent}\nupdated_at={stamp.isoformat()}\n')
             with patch.object(nas_backup,'rsync',side_effect=marker):
                 with self.assertRaises(RuntimeError):nas_backup.capacity(self.config,self.root)
+
+    def test_capacity_accepts_bounded_clock_skew_and_requires_timezone(self):
+        for stamp,accepted in [(nas_backup.now()+timedelta(seconds=10),True),
+                               (nas_backup.now().replace(tzinfo=None),False)]:
+            def marker(config,args):
+                Path(args[-1]).write_text(f'available_percent=60\nupdated_at={stamp.isoformat()}\n')
+            with patch.object(nas_backup,'rsync',side_effect=marker):
+                if accepted:nas_backup.capacity(self.config,self.root)
+                else:
+                    with self.assertRaisesRegex(RuntimeError,'timezone'):nas_backup.capacity(self.config,self.root)
 
     def test_notification_contains_only_project_status_and_time(self):
         password=self.root/'smtp';password.write_text('smtp-private')
