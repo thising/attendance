@@ -23,7 +23,7 @@
 - **THEN** 不提交部分基线，保留来源与原系统可恢复状态，等待人工核实
 
 ### Requirement: Configurable offsite backup destination
-部署 SHALL 支持配置异地备份目标，数据库、运行配置和解密所需密钥配套保全，并验证传输完整性及隔离恢复。本阶段目标为家中 NAS，未来私有部署 SHALL 按客户环境替换配置，不将家庭 NAS 地址、路径或凭据写死在应用中。本要求的 R15 工具已本地实现并在模拟 NAS 目录验证；真实接入、安装与异地恢复仍待验，不能将本地验证视作任务已安装。
+部署 SHALL 支持配置异地备份目标，数据库、运行配置和解密所需密钥配套保全，并验证传输完整性及隔离恢复。本阶段目标为家中 NAS，未来私有部署 SHALL 按客户环境替换配置，不将家庭 NAS 地址、路径或凭据写死在应用中。本要求的R15工具已在本地与真实NAS验证，并于2026-10-05安装启用；真实整机电源周期与长期触发不在首次恢复结论内，证据见发布记录。
 
 #### Scenario: Initial home NAS backup
 - **WHEN** 实施本阶段异地备份
@@ -32,3 +32,18 @@
 #### Scenario: Later customer deployment
 - **WHEN** 在客户环境私有部署
 - **THEN** 按客户资源配置备份目标并独立验证恢复，不依赖家中 NAS 才能部署应用
+
+### Requirement: Isolated dual-chain publication and verification
+家中NAS部署 SHALL 沿用现有项目的可读档案与客户端加密系统双链路，项目身份、目录、容器、仓库和状态隔离。可读档案 SHALL 排除认证、令牌及密钥，历史只读且摘要核验后原子切换；系统仓库 SHALL 开启私有身份与append-only，解密口令不明文留在NAS。两链从本次准确恢复点回读验证后才登记成功，失败保留上一可恢复点。
+
+#### Scenario: Interruption or stale recovery point
+- **WHEN** NAS不可达、传输中断、数据超过48小时、空间低于20%、容量标记超时或时区不明
+- **THEN** 任务不标记成功，保留前次恢复点，记录失败状态并使用用户授权渠道发送仅含项目/状态/时间的通知；恢复后发恢复通知
+
+#### Scenario: Historical bundles lack code identity
+- **WHEN** 原有完整备份缺少代码版本元数据
+- **THEN** 原样加密保全并核对恢复字节，不改写原清单，继续标记代码依据不足，不宣称匹配代码恢复已验证
+
+#### Scenario: Daily and monthly home NAS windows
+- **WHEN** 家中NAS按02:00关机、10:30开机计划运行
+- **THEN** 异地任务在北京时间11/18/23点补传，完整系统每日加密，月初11:30校验；同项目任务互斥，真实自然调度与整机周期另行观察

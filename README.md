@@ -2,16 +2,16 @@
 
 面向班级日常管理，记录考勤、活动加分与违纪扣分。界面采用纸白、墨色、朱砂和竹节标志；快速点名直接选择状态，录入后立即计分。
 
-当前在 [ams.unzip.work](https://ams.unzip.work/) 以独立服务上线，实际部署代码为 `0e0c099`。唯一生效的改造依据是 [OpenSpec 提案](openspec/changes/modernize-attendance-management/proposal.md)，实际发布范围、数据时点与回滚见 [发布记录](openspec/changes/modernize-attendance-management/release.md)。VPS207 旧站按用户要求继续运行，使用者需只在新站录入，两个站点不会自动同步。
+当前在 [ams.unzip.work](https://ams.unzip.work/) 以独立服务上线，2026-10-05 固定并部署 R15 `bad6926`，标签 `duxing-r15-20261005` 已推送 GitHub。唯一生效的改造依据是 [OpenSpec 提案](openspec/changes/modernize-attendance-management/proposal.md)，实际发布范围、数据时点与回滚见 [发布记录](openspec/changes/modernize-attendance-management/release.md)。VPS207 旧站按用户要求继续运行，使用者需只在新站录入，两个站点不会自动同步。
 
-R15 已于 2026-10-05 完成本地候选验收，尚未发布：结束管理后冻结班级、教师停用分享后的恢复权限、滚动登录限流、审查发现的业务/界面修复，以及可配置 NAS 备份工具。验收范围和未完成的生产/NAS 安装见[实施验收 R15](openspec/changes/modernize-attendance-management/implementation-validation.md)。本轮没有更新现有业务库或线上服务。
+R15 实现结束管理后冻结班级、教师停用分享后的恢复权限、滚动登录限流和审查发现的业务/界面修复。发布使用当前新站运行库成套备份演练后原地迁移；243 人九项次数、分数及原用户密码散列保全。NAS 沿用现有项目的可读档案与加密系统双链路，真实回读恢复和隔离应用验证通过。验收范围及设备、整机开关机等保留项见[实施验收 R15](openspec/changes/modernize-attendance-management/implementation-validation.md)。
 
-2026-09-24 17:04（北京时间）从 VPS207 的 `managedb.sqlite3` 只读取得固定来源快照：5 班、243 人、64 条活动、155 条学生报告，243 人九类次数及分数与源缓存逐项一致。用户明确选择这份已同步快照作为本次上线数据；17:04 后旧站的新记录不会自动带入。SHA-256 与隔离迁移演练见 [实施验收记录](openspec/changes/modernize-attendance-management/implementation-validation.md)。本地 [8005 审查副本](http://127.0.0.1:8005/?term=2026-autumn)仍展示同一取样。正式站通过独立生产迁移谱系在**副本**上升级后导入，不曾对 VPS207 运行旧 `0002` 或修改其数据库。下方开发初始化命令仅用于空开发库，不适用于生产来源。
+2026-09-24 17:04（北京时间）从 VPS207 的 `managedb.sqlite3` 只读取得固定来源快照：5 班、243 人、64 条活动、155 条学生报告，243 人九类次数及分数与源缓存逐项一致。用户明确选择这份已同步快照作为本次上线数据；17:04 后旧站的新记录不会自动带入。SHA-256 与隔离迁移演练见 [实施验收记录](openspec/changes/modernize-attendance-management/implementation-validation.md)。本地 [8005 历史审查副本](http://127.0.0.1:8005/?term=2026-autumn)对应同一取样，不能作为当前正式站数据依据。正式站通过独立生产迁移谱系在**副本**上升级后导入，不曾对 VPS207 运行旧 `0002` 或修改其数据库。下方开发初始化命令仅用于空开发库，不适用于生产来源。
 
 ## 本地运行
 
 公开报告使用数据库预生成快照，业务提交后更新；新站已配置北京时间 00:01 月初边界刷新和 04:00 一致性校验。目标机路径、运行环境和回滚边界见 [部署契约](deploy/README.md) 与 [发布记录](openspec/changes/modernize-attendance-management/release.md)。
-每日 04:20 在服务器本机另存一份私有数据库与匹配环境文件；首次备份和隔离恢复已核验。异地备份目标已确认为家中 NAS；R15 的可配置复制工具与调度模板仅本地实现，尚未安装或验证真实 NAS 链路。
+每日 04:20 在服务器本机另存一份数据库、匹配环境与版本清单；北京时间 11/18/23 点复制可读业务档案到家中 NAS，完整系统包每日客户端加密上传，月初 11:30 校验。两条链路均真实回读验证后才登记成功；现有 18 份旧备份也已原样加密保全。失败、超期与恢复通知沿用已授权的 backup@unzip.work 邮件渠道。具体权限、密钥保全和回滚见[部署契约](deploy/README.md)。
 
 运行基线：Python 3.12、Django 5.2；依赖以 `requirements.txt` / `requirements-dev.txt` 为准。已有个人 `Pipfile` 文件保留，不作为本版本运行依据。
 
@@ -52,6 +52,6 @@ mkdir -p .local
 node --check static/workspace/workspace.js
 ```
 
-最新生产取样仍只有2026年9月当前学期证据，当前学期导入经名单、逐字段和逐人成绩验证后完成；没有补造历史学期。R1另一份本机2023年旧库的历史名单和成绩仍需确认，其`legacy_pending`限制不变。两者的迁移谱系不同；生产迁移风险、历史证据缺口及可执行回滚方式见 [发布准备](openspec/changes/modernize-attendance-management/release.md)。不要将“副本导入通过”视为已允许切换真实系统。
+初始导入依据为2026年9月当前学期证据，没有补造历史学期；R15 发布另取 2026-10-05 当前正式站配对快照，未重新导入9月副本。R1另一份本机2023年旧库的历史名单和成绩仍需确认，其`legacy_pending`限制不变。两者的迁移谱系不同；生产迁移风险、历史证据缺口及可执行回滚方式见 [发布记录](openspec/changes/modernize-attendance-management/release.md)。后续正式切换仍须明确授权及当前运行库验收。
 
 原项目为作者学习 Django 时建立的高校考勤系统；本次保留其业务数据表并替换权限、计分和界面实现。
