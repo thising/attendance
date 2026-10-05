@@ -23,8 +23,10 @@ from zoneinfo import ZoneInfo
 
 try:
     from .offsite_backup import digest, verify_bundle, write_private, write_status
+    from . import backup_history
 except ImportError:
     from offsite_backup import digest, verify_bundle, write_private, write_status
+    import backup_history
 
 
 def now():
@@ -174,6 +176,12 @@ def system_backup(config, bundle, staging):
     shutil.copytree(config['environment_root'], target / 'configuration')
     # Restore the environment paired with the database, not a later edit.
     shutil.copyfile(bundle / 'ams.env', target / 'configuration/ams.env')
+    operations = Path(config.get('operations_root', '/usr/local/libexec/duxing'))
+    if operations.is_dir():
+        shutil.copytree(operations, target / 'operations', ignore=shutil.ignore_patterns('__pycache__'))
+    history = Path(config['state_root']) / 'backup-history.json'
+    if history.is_file():
+        shutil.copyfile(history, target / 'backup-history.json')
     units = target / 'units'; units.mkdir(mode=0o700)
     for source in Path('/etc/systemd/system').glob('duxing-*'):
         if source.is_file(): shutil.copyfile(source, units / source.name)
@@ -245,9 +253,16 @@ def execute(config, mode):
                     write_status(state / 'monthly-check.json', {'checked_at': now().isoformat(), 'ok': True, 'delete_performed': False})
                     return previous
                 if previous.get('ok') and previous.get('latest_backup') == bundle.name:
+                    if config.get('local_retention_days') is not None:
+                        backup_history.preserve(config, staging)
+                        backup_history.cleanup(config, staging, apply=True)
                     return previous
+                if config.get('local_retention_days') is not None:
+                    backup_history.preserve(config, staging)
                 readable = readable_backup(config, bundle, staging)
                 system = system_backup(config, bundle, staging)
+                if config.get('local_retention_days') is not None:
+                    backup_history.cleanup(config, staging, apply=True)
             result = {'ok': True, 'last_attempt_at': now().isoformat(), 'last_success_at': now().isoformat(),
                       'latest_backup': bundle.name, 'latest_backup_created_at': meta['created_at_beijing'],
                       'readable_snapshot': readable, 'system_snapshot': system, 'legacy_pending': legacy}

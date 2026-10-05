@@ -47,3 +47,18 @@
 #### Scenario: Daily and monthly home NAS windows
 - **WHEN** 家中NAS按02:00关机、10:30开机计划运行
 - **THEN** 异地任务在北京时间11/18/23点补传，完整系统每日加密，月初11:30校验；同项目任务互斥，真实自然调度与整机周期另行观察
+
+### Requirement: Seven-day local retention with permanent NAS history
+本阶段服务器 SHALL 自动保留最近7×24小时内的已完成配对备份，NAS SHALL 保留历史且不运行自动forget/prune或档案删除。服务器清理 SHALL 在异地任务成功后执行，先对每份候选从准确NAS快照恢复并比较数据库、环境及清单摘要；v2还须保全匹配源码。未归档、校验失败、未完成、符号链接或未知内容 SHALL 保留本机并报告，NAS不可达时不删候选。无论日期如何 SHALL 保留最后一份可用本机恢复点。
+
+#### Scenario: Multiple pending backups after NAS downtime
+- **WHEN** NAS恢复后本机积累多份未上传的已完成备份
+- **THEN** 逐份原样加密归档并回读核验，不只复制最新一份；记录每份不可变身份、准确快照和代码依据，然后清理超过7天的已验本机副本
+
+#### Scenario: Unverified or corrupted historical backup
+- **WHEN** 待清理备份无NAS回执、恢复失败、内容变化或含未知文件
+- **THEN** 不删除这些本机备份；保留错误信息，允许保留超过7天以保障恢复
+
+#### Scenario: NAS manual maintenance
+- **WHEN** 管理员决定清理NAS历史
+- **THEN** 单独预览和人工审核后执行维护，不由本机7天策略触发；本阶段不执行NAS删除或放宽append-only权限

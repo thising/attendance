@@ -13,13 +13,25 @@
 若新站首次发布失败，先禁用并停止 `duxing-ams.service` 和两个定时器，将 `/etc/nginx/sites-enabled/zz-ams.unzip.work` 移走并重载已验证的 Nginx 配置；既有站点保持不变。若新站已产生业务写入，先将当前数据库、环境文件和代码版本另存，再决定恢复或人工合并，不能直接以旧快照覆盖新写入。此段首次部署步骤仅供历史追溯；当前已发布 R15，匹配代码/数据库/环境文件的回滚位置以 OpenSpec 发布记录为准。旧 VPS207 网站是独立服务，不能代替新站上线后的业务数据回滚。
 
 
+## 当前生效的保留口径（2026-10-05 后续决策）
+
+服务器自动保留最近7×24小时的已完成配对备份；NAS历史只人工清理，未设置自动forget/prune或档案删除。异地配置 `local_retention_days: 7` 启用此策略。每次异地任务先将所有未归档完成备份原样加密保全，v2配套源码，准确快照回读通过后写私有 `backup-history.json`；原有v1身份缺口不改写。两链成功后，超过7天的本机候选再次从NAS恢复并核对整批，再浅删除3文件和目录。最近7天及最后一份本机恢复点、未完成/未归档/校验失败/含未知文件的备份保留；NAS异常时允许保留超过一周。
+
+此清理随既有11/18/23点任务执行，不新增清理timer。NAS电源窗口不变，04:20本机生成时不等待关机中的NAS。服务仅增加本项目 `/var/backups/duxing` 写权限。系统加密包同步保全实际运维脚本与历史索引；手工检查默认只预览：
+
+```sh
+python /usr/local/libexec/duxing/backup_history.py --config /etc/duxing/nas-backup.json
+```
+
+`--apply` 是运维故障排查时的显式本机执行入口，仍须NAS准确恢复验证；日常由已启用异地任务自动执行。NAS人工历史维护须另行预览、审核与恢复点保全，不通过本命令操作NAS删除。可读档案仍沿用现有链路，此处没有执行其取消建议。实际安装与清理证据见发布记录。
+
 ## R15 统一 NAS 备份链路
 
 2026-10-05 用户授权固定版本、部署 unzip 并整合备份，随后要求沿用 NAS 其他项目的统一思路。已安装并验证的方案复用托管日记已验收的 rsync 接收、NAS finalizer、来源网关和 append-only Rest Server 镜像；笃行拥有独立目录、仓库、凭据、状态和容器，不更改其他项目的数据与调度。旧 SFTP/挂载目录复制工具保留为可选客户环境适配，不是家中 NAS 的生效任务。
 
 | 北京时间 | 有效任务 | 内容 |
 | --- | --- | --- |
-| 每日 04:20 | duxing-backup.timer | SQLite 在线快照 + 匹配 ams.env + manifest v2，保留旧备份 |
+| 每日 04:20 | duxing-backup.timer | SQLite 在线快照 + 匹配 ams.env + manifest v2，最近7天保留由异地任务核验后执行 |
 | 每日 11:00、18:00、23:00 | duxing-offsite-backup.timer | 新本机恢复点的可读业务档案及加密系统包；已有同一恢复点成功则跳过 |
 | 每月 1 日 11:30 | duxing-offsite-check.timer | 可读历史全量回读和 Restic 数据抽样；不删除历史 |
 
@@ -31,7 +43,7 @@ NAS 接收端配置在 nas-offsite/，镜像由安装时核验的既有内容 ID
 
 nas_backup.py 共用互斥锁，数据生成时点超过 48 小时、NAS 可用空间低于 20%、容量标记超过180秒或未来超过30秒/缺少时区、传输/校验/恢复失败均拒绝成功；记录最新尝试与数据恢复时点，不用近期重验旧包冒充新备份。可读档案须确认 NAS 归档并从只读历史回读；系统包须从本次准确 Restic snapshot 恢复并比对数据库、密钥环境和代码。两条链路都成功后才写成功状态。使用用户确认的 backup@unzip.work 邮件渠道发送失败/超期与恢复通知，只含项目、状态和时间；首次失败与恢复SMTP提交通过，收件箱送达待用户核实。SMTP失败另记本机状态，VPS整机失联仍无法发信。
 
-新版 backup_sqlite.py 的 manifest 记录 immutable release、迁移账本、数据库/环境摘要和带偏移的生成时间。DUXING_BACKUP_DATABASE/ENVIRONMENT/ROOT/RELEASE 支持替换本机路径；迁移窗口须暂停应用写入、报告和备份任务，防止代码/结构不配套。旧无代码身份的包不原地改写，保留为 legacy_pending；首 30 天不执行删除、forget、prune，之后须单独审查保留策略。
+新版 backup_sqlite.py 的 manifest 记录 immutable release、迁移账本、数据库/环境摘要和带偏移的生成时间。DUXING_BACKUP_DATABASE/ENVIRONMENT/ROOT/RELEASE 支持替换本机路径；迁移窗口须暂停应用写入、报告和备份任务，防止代码/结构不配套。旧无代码身份的包不原地改写，保留为 legacy_pending；NAS不自动执行删除、forget、prune；服务器按上方后续已确认的7天策略，先核验异地恢复再清理。
 
 检查入口：
 
