@@ -1,5 +1,7 @@
 ## ADDED Requirements
 
+R15 状态：本文件新增的结束管理边界已确认，已在本地实现和回归验证；不代表已部署行为。
+
 ### Requirement: Explicit semester calendar
 系统 SHALL 使用上海业务日期，将春季定义为2月1日至8月1日前，秋季定义为9月1日至次年2月1日前。
 
@@ -12,14 +14,14 @@
 - **THEN** 不存在当前计分学期，界面默认展示最近完成的春季，拒绝新增业务记录；其他写入按提案D3审核结果执行
 
 ### Requirement: Calendar-derived monthly base score
-系统 SHALL 将当前学期已进入月份或历史学期完整月份纳入平均，无事件月按当期规则月度基础分计算（默认60），未来月份不提前纳入。
+系统 SHALL 将仍在管理班级的当前学期已进入月份或完整管理至期末的历史学期完整月份纳入平均，无事件月按当期规则月度基础分计算（默认60），未来月份不提前纳入。提前结束管理的班级 SHALL 保留冻结时的月份集合，不补计归档后的月份。
 
 #### Scenario: Month rollover without writes
 - **WHEN** 9月得分50且10月刚开始、没有10月活动
 - **THEN** 第一次只读查询即显示9月50、10月60、学期均分55，无需数据库写入触发
 
 ### Requirement: Current semester corrections preserve consistency
-系统 SHALL 允许获授权用户补录或修改当前学期内的记录，并按发生月份和该学期绑定规则同步计算明细与汇总。
+系统 SHALL 允许获授权用户补录或修改仍在管理班级的当前学期内记录，并按发生月份和该学期绑定规则同步计算明细与汇总。
 
 #### Scenario: Missing month cache
 - **WHEN** 当前为10月，学生已有10月汇总，后来补入同一学期9月缺勤明细
@@ -45,7 +47,7 @@
 - **THEN** 从独立的8月只读列表及详情查看当时明确保存的个人记录，不将其归入相邻学期、不补造完整点名名单或计分
 
 ### Requirement: Semester-specific student membership
-系统 SHALL 将学期名单与当前学生资料隔离；新增学生只加入当前学期并参与其全部已进入月份计分，归档保留当期身份和计分依据。
+系统 SHALL 将学期名单与当前学生资料隔离；新增学生只加入仍在管理班级的当前学期并参与其全部已进入月份计分，归档保留当期身份和计分依据。
 
 #### Scenario: Supplement or update a current student
 - **WHEN** 当前学期新增学生、改名或移除学生
@@ -59,8 +61,19 @@
 - **WHEN** 删除学生或班级会级联删除已结束学期记录
 - **THEN** 拒绝破坏性删除，使用不改变历史数据的归档或当前名单变更方式
 
+### Requirement: Class archival ends management
+系统 SHALL 将班级归档解释为结束管理，在归档时冻结名单、业务事实、评分依据、已进入月份及分数。归档后 SHALL 拒绝业务数据变更，不再为后续月份计基础分，不向未来学期继承名单或生成成绩；班主任仍可通过历史班级入口只读查看。
+
+#### Scenario: Archival before the semester ends
+- **WHEN** 班级在秋季学期的10月结束管理，之后进入11月或下一学期
+- **THEN** 该秋季冻结结果只包含归档时的9月和10月数据，不增加11月基础分，不生成下一学期名单或分数
+
+#### Scenario: Later settings or roster changes
+- **WHEN** 归档后负责人调整规则，或任何入口尝试修改该班名单或业务事实
+- **THEN** 该班冻结身份、事实、规则与成绩保持不变，写入该班业务数据的请求被拒绝
+
 ### Requirement: Rebuildable summaries
-系统 SHALL 将报告事实作为次数来源，保证业务唯一性并能重建派生汇总；已结束学期重建不得改变归档名单、事实或最终成绩。
+系统 SHALL 将报告事实作为次数来源，保证业务唯一性并能重建派生汇总；已结束学期或已结束管理班级的重建不得改变归档名单、事实、月份范围或最终成绩。
 
 #### Scenario: Rebuild before applying data repair
 - **WHEN** 检测到重复业务记录或缓存差异

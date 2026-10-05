@@ -95,7 +95,8 @@ if _db_path != ':memory:' and _db_file.is_file():
         _known = {'0001_initial','0003_duxing_foundation','0004_named_committee_accounts',
                   '0005_configurable_scores_and_account_credentials','0006_audit_model_state',
                   '0007_average_decimal_places','0008_activity_details',
-                  '0009_public_reports_login_guard','0010_current_class_report'}
+                  '0009_public_reports_login_guard','0010_current_class_report',
+                  '0011_r15_lifecycle_and_access'}
         if not _production_shape or not _ledger.issubset(_known):
             raise RuntimeError('Production migration lineage/schema is unrecognized; migration blocked for manual review.')
 elif DUXING_MIGRATION_LINEAGE == 'production-2026':

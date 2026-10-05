@@ -1,0 +1,12 @@
+{
+  "backup_root": "/var/backups/duxing",
+  "state_root": "/var/lib/duxing/backup-state",
+  "artifact_root": "/opt/duxing/artifacts",
+  "environment_root": "/etc/duxing",
+  "rsync_remote": "rsync://duxing@nas.example.invalid:1874/duxing-incoming/",
+  "rsync_history": "rsync://duxing@nas.example.invalid:1874/duxing-history/",
+  "rsync_password_file": "/etc/duxing/rsync-password",
+  "restic_repository": "rest:http://nas.example.invalid:8001/duxing/system/",
+  "restic_password_file": "/etc/duxing/restic-repository-password",
+  "rest_password_file": "/etc/duxing/rest-password"
+}

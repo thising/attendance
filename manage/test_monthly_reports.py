@@ -260,10 +260,10 @@ class MonthlyReportTests(TestCase):
                 data = self.client.get(f'/{suffix}?format=json&term=2026-autumn').json()['data']
                 summary = data['class_summaries'][0] if not suffix else data['summary']
                 self.assertEqual(summary['activity_count'], 3)
-                self.assertEqual(summary['last_activity_at'], '2026-10-11T12:00:00')
+                self.assertEqual(summary['last_activity_at'], '2026-10-11T12:00:00+08:00')
                 self.assertNotIn('average', summary)
                 if not suffix:
                     self.assertEqual(data['dashboard_students'][0]['score_base'], '75.00')
         history = self.client.get(f'/classes/{self.classroom.code}/?format=json&term=2026-spring').json()['data']
         self.assertEqual(history['summary']['activity_count'], 1)
-        self.assertEqual(history['summary']['last_activity_at'], '2026-10-15T23:00:00')
+        self.assertEqual(history['summary']['last_activity_at'], '2026-10-15T23:00:00+08:00')

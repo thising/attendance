@@ -4,7 +4,7 @@ from manage.models import Class, OwnerScoringSettings, OwnerTermPolicy, ScoringP
 from . import calendar
 from .access import owner_actor, require_ready
 from .errors import BusinessError
-from .scoring import class_report, policy_for, money
+from .scoring import class_report, policy_for, money, average_display
 from .writes import atomic_write, once, event, require_revision
 from .report_snapshots import mark_report_dirty
 
@@ -65,21 +65,37 @@ def validate_average_decimal_places(value):
     return int(value)
 
 
-def preview_rules(owner_id,current,weights,monthly=None):
-    affected=[]
-    total=0
-    for classroom in Class.objects.filter(owner_id=owner_id):
+def preview_rules(owner_id, current, weights, monthly=None, average_decimal_places=None):
+    affected = []
+    total = 0
+    current_policy = policy_for(owner_id, current)
+    display_places = current_policy['average_decimal_places'] if average_decimal_places is None else average_decimal_places
+    for classroom in Class.objects.filter(owner_id=owner_id, archived=False):
         if classroom.legacy_pending:
-            raise BusinessError('legacy_baseline_pending','旧库历史基线尚待核对。',409)
-        before=class_report(classroom,current)
-        after=class_report(classroom,current,weights=weights,monthly=monthly)
-        total+=before['summary']['student_count']
-        old_scores={row['id']:Decimal(row['score']) for row in before['rows']}
-        differences=[abs(Decimal(row['score'])-old_scores[row['id']]) for row in after['rows']]
-        affected.append({'id':classroom.pk,'name':classroom.classname,
-            'student_count':len(differences),'changed_count':sum(value!=0 for value in differences),
-            'max_absolute_change':format(max(differences,default=Decimal('0')),'.2f')})
-    return {'classes':affected,'student_count':total}
+            raise BusinessError('legacy_baseline_pending', '旧库历史基线尚待核对。', 409)
+        before = class_report(classroom, current)
+        after = class_report(classroom, current, weights=weights, monthly=monthly)
+        total += before['summary']['student_count']
+        old_rows = {row['id']: row for row in before['rows']}
+        differences, monthly_changed, display_changed = [], 0, 0
+        for row in after['rows']:
+            old = old_rows[row['id']]
+            old_months = {item['key']: Decimal(item['score']) for item in old['months']}
+            new_months = {item['key']: Decimal(item['score']) for item in row['months']}
+            # Monthly scores are exact half-point amounts. Compare those facts,
+            # never the rounded display average; opposing month changes count.
+            monthly_changed += old_months != new_months
+            old_exact = sum(old_months.values(), Decimal('0')) / len(old_months) if old_months else Decimal('0')
+            new_exact = sum(new_months.values(), Decimal('0')) / len(new_months) if new_months else Decimal('0')
+            differences.append(abs(new_exact - old_exact))
+            display_changed += old['score'] != average_display(new_exact, display_places)
+        affected.append({'id': classroom.pk, 'name': classroom.classname,
+            'student_count': len(differences), 'changed_count': monthly_changed,
+            'average_changed_count': sum(value != 0 for value in differences),
+            'display_changed_count': display_changed,
+            'max_absolute_change': format(max(differences, default=Decimal('0')), '.2f')})
+    return {'classes': affected, 'student_count': total,
+            'display_changed': display_places != current_policy['average_decimal_places']}
 
 
 @atomic_write
@@ -93,12 +109,12 @@ def change_rules(request,payload):
     if payload.get('action')=='preview':
         require_revision(current_policy['revision'],payload.get('revision'))
         effective_monthly=current_policy['monthly'] if monthly is None else monthly
-        return {'preview':preview_rules(actor.user_id,current,weights,effective_monthly)}
+        return {'preview':preview_rules(actor.user_id,current,weights,effective_monthly,average_decimal_places)}
     def apply():
         settings=ensure_default_policy(actor.user_id)
         require_revision(settings.revision,payload.get('revision'))
         effective_monthly=policy_for(actor.user_id,current)['monthly'] if monthly is None else monthly
-        preview=preview_rules(actor.user_id,current,weights,effective_monthly)
+        preview=preview_rules(actor.user_id,current,weights,effective_monthly,average_decimal_places)
         policy=ScoringPolicyVersion.objects.create(owner_id=actor.user_id,effective_term_start=current.start,**weights,
             base_score=effective_monthly['base'],minimum_score=effective_monthly['minimum'],maximum_score=effective_monthly['maximum'],
             average_decimal_places=average_decimal_places)
@@ -106,7 +122,7 @@ def change_rules(request,payload):
         settings.revision+=1
         settings.save(update_fields=['default_policy','revision'])
         OwnerTermPolicy.objects.update_or_create(owner_id=actor.user_id,term_key=current.key,defaults={'policy':policy})
-        for classroom in Class.objects.filter(owner_id=actor.user_id):
+        for classroom in Class.objects.filter(owner_id=actor.user_id, archived=False):
             event(actor,classroom,'rules_updated','更新负责人评分规则，对当前及未来学期生效',
                   classroom.student_set.filter(active=True).count(),revision=settings.revision)
             mark_report_dirty(classroom)

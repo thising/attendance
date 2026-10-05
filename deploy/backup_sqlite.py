@@ -13,9 +13,10 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 
-DATABASE = Path('/var/lib/duxing/managedb.sqlite3')
-ENVIRONMENT = Path('/etc/duxing/ams.env')
-ROOT = Path('/var/backups/duxing')
+DATABASE = Path(os.environ.get('DUXING_BACKUP_DATABASE', '/var/lib/duxing/managedb.sqlite3'))
+ENVIRONMENT = Path(os.environ.get('DUXING_BACKUP_ENVIRONMENT', '/etc/duxing/ams.env'))
+ROOT = Path(os.environ.get('DUXING_BACKUP_ROOT', '/var/backups/duxing'))
+RELEASE = Path(os.environ.get('DUXING_BACKUP_RELEASE', '/opt/duxing/current'))
 
 
 def digest(path):
@@ -45,6 +46,9 @@ def main():
     target_dir.mkdir(mode=0o700)
     database = target_dir / 'managedb.sqlite3'
     environment = ENVIRONMENT.read_bytes()
+    if not RELEASE.is_dir():
+        raise RuntimeError('A matching application release directory is required.')
+    release = RELEASE.resolve()
     source = sqlite3.connect(DATABASE.resolve().as_uri() + '?mode=ro', uri=True, timeout=10)
     target = sqlite3.connect(database)
     try:
@@ -59,10 +63,16 @@ def main():
     os.chmod(database, 0o600)
     with database.open('rb') as complete:
         os.fsync(complete.fileno())
+    if release is not None and RELEASE.resolve() != release:
+        raise RuntimeError('Application release changed during backup; retry after deployment settles.')
     if environment != ENVIRONMENT.read_bytes():
         raise RuntimeError('Runtime environment changed during backup; refusing a mismatched pair.')
     write_private(target_dir / 'ams.env', environment)
-    manifest = {'created_at_beijing': datetime.now(ZoneInfo('Asia/Shanghai')).isoformat(),
+    with sqlite3.connect(database.resolve().as_uri() + '?mode=ro', uri=True) as backed_up:
+        has_ledger = backed_up.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='django_migrations'").fetchone()
+        migrations = [list(row) for row in backed_up.execute('SELECT app,name FROM django_migrations ORDER BY app,name')] if has_ledger else []
+    manifest = {'format_version': 2, 'release': release.name if release else None,
+                'migration_ledger': migrations, 'created_at_beijing': datetime.now(ZoneInfo('Asia/Shanghai')).isoformat(),
                 'database_sha256': digest(database), 'environment_sha256': digest(target_dir / 'ams.env')}
     write_private(target_dir / 'manifest.json', (json.dumps(manifest, sort_keys=True) + '\n').encode())
     descriptor = os.open(target_dir, os.O_RDONLY)

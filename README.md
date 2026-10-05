@@ -4,12 +4,14 @@
 
 当前在 [ams.unzip.work](https://ams.unzip.work/) 以独立服务上线，实际部署代码为 `0e0c099`。唯一生效的改造依据是 [OpenSpec 提案](openspec/changes/modernize-attendance-management/proposal.md)，实际发布范围、数据时点与回滚见 [发布记录](openspec/changes/modernize-attendance-management/release.md)。VPS207 旧站按用户要求继续运行，使用者需只在新站录入，两个站点不会自动同步。
 
+R15 已于 2026-10-05 完成本地候选验收，尚未发布：结束管理后冻结班级、教师停用分享后的恢复权限、滚动登录限流、审查发现的业务/界面修复，以及可配置 NAS 备份工具。验收范围和未完成的生产/NAS 安装见[实施验收 R15](openspec/changes/modernize-attendance-management/implementation-validation.md)。本轮没有更新现有业务库或线上服务。
+
 2026-09-24 17:04（北京时间）从 VPS207 的 `managedb.sqlite3` 只读取得固定来源快照：5 班、243 人、64 条活动、155 条学生报告，243 人九类次数及分数与源缓存逐项一致。用户明确选择这份已同步快照作为本次上线数据；17:04 后旧站的新记录不会自动带入。SHA-256 与隔离迁移演练见 [实施验收记录](openspec/changes/modernize-attendance-management/implementation-validation.md)。本地 [8005 审查副本](http://127.0.0.1:8005/?term=2026-autumn)仍展示同一取样。正式站通过独立生产迁移谱系在**副本**上升级后导入，不曾对 VPS207 运行旧 `0002` 或修改其数据库。下方开发初始化命令仅用于空开发库，不适用于生产来源。
 
 ## 本地运行
 
 公开报告使用数据库预生成快照，业务提交后更新；新站已配置北京时间 00:01 月初边界刷新和 04:00 一致性校验。目标机路径、运行环境和回滚边界见 [部署契约](deploy/README.md) 与 [发布记录](openspec/changes/modernize-attendance-management/release.md)。
-每日 04:20 在服务器本机另存一份私有数据库与匹配环境文件；首次备份和隔离恢复已核验。异地备份尚待指定目标。
+每日 04:20 在服务器本机另存一份私有数据库与匹配环境文件；首次备份和隔离恢复已核验。异地备份目标已确认为家中 NAS；R15 的可配置复制工具与调度模板仅本地实现，尚未安装或验证真实 NAS 链路。
 
 运行基线：Python 3.12、Django 5.2；依赖以 `requirements.txt` / `requirements-dev.txt` 为准。已有个人 `Pipfile` 文件保留，不作为本版本运行依据。
 

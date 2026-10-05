@@ -1,0 +1,14 @@
+{
+  "backup_root": "/var/backups/duxing",
+  "status_file": "/var/lib/duxing/backup-state/offsite.json",
+  "transport": {
+    "type": "sftp",
+    "host": "nas.example.invalid",
+    "username": "duxing-backup",
+    "port": 65022,
+    "destination": "/private-backup/duxing",
+    "identity_file": "/etc/duxing/offsite_ed25519",
+    "known_hosts": "/etc/duxing/offsite_known_hosts",
+    "timeout_seconds": 180
+  }
+}

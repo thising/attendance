@@ -26,6 +26,7 @@ class ClassManagementTests(AccountFixtures, TestCase):
         return {
             "action": action, "confirmation": classroom.classname,
             "term_key": self.term_key, "revision": classroom.revision,
+            "report_revision": classroom.report_revision,
             "submission_id": str(uuid4()), **values,
         }
 
@@ -35,6 +36,7 @@ class ClassManagementTests(AccountFixtures, TestCase):
         response = self.owner_client.post(f"/classes/{classroom.code}/roster/", {
             "action": "add", "student": {"number": number, "name": "合成学生", "sex": "male"},
             "term_key": self.term_key, "revision": classroom.revision,
+            "report_revision": classroom.report_revision,
             "submission_id": str(uuid4()),
         }, content_type="application/json")
         self.assertEqual(response.status_code, 200, response.content)

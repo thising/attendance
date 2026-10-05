@@ -35,6 +35,8 @@ class Class(models.Model):
     revision = models.PositiveIntegerField(default=1)
     report_revision = models.PositiveIntegerField(default=0)
     archived = models.BooleanField(default=False)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    ended_term_key = models.CharField(max_length=20, blank=True, default='')
     started_on = models.DateField(default=local_date)
     legacy_pending = models.BooleanField(default=False)
 
@@ -150,10 +152,8 @@ class SummaryCount(models.Model):
         constraints = [models.UniqueConstraint(fields=['student', 'year', 'month'], name='summary_student_month_unique')]
 
     def score(self):
-        total = Decimal('60')
-        for key, field in COUNT_FIELDS.items():
-            total += getattr(self, field) * Decimal(WEIGHT_DEFAULTS[key]) * (1 if key in ('low', 'mid', 'high') else -1)
-        return max(Decimal('0'), total)
+        raise NotImplementedError(
+            'SummaryCount仅保存次数缓存；请使用manage.services.scoring按学期规则计分。')
 
 
 class ScoringPolicyVersion(models.Model):
@@ -220,12 +220,14 @@ class ScoringPolicyVersion(models.Model):
 
 
 class OwnerScoringSettings(models.Model):
+    # revision is authoritative for edits; default_policy is a compatibility index.
     owner = models.OneToOneField(settings.AUTH_USER_MODEL, models.PROTECT)
     default_policy = models.ForeignKey(ScoringPolicyVersion, models.PROTECT, null=True)
     revision = models.PositiveIntegerField(default=0)
 
 
 class OwnerTermPolicy(models.Model):
+    # Compatibility index only; policy_for resolves immutable effective versions.
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, models.PROTECT)
     term_key = models.CharField(max_length=20)
     policy = models.ForeignKey(ScoringPolicyVersion, models.PROTECT)
@@ -339,6 +341,7 @@ class CommitteeLoginGuard(models.Model):
     failures = models.PositiveIntegerField(default=0)
     first_failure_at = models.FloatField(default=0)
     blocked_until = models.FloatField(default=0)
+    failure_times = models.JSONField(default=list, blank=True)
 
 
 class OwnerLoginGuard(models.Model):
@@ -347,6 +350,7 @@ class OwnerLoginGuard(models.Model):
     failures = models.PositiveIntegerField(default=0)
     first_failure_at = models.FloatField(default=0)
     blocked_until = models.FloatField(default=0)
+    failure_times = models.JSONField(default=list, blank=True)
 
 
 class PublicClassReportLink(models.Model):
@@ -354,6 +358,7 @@ class PublicClassReportLink(models.Model):
     token_digest = models.CharField(max_length=64, unique=True)
     token_ciphertext = models.TextField(editable=False)
     active = models.BooleanField(default=True)
+    revision = models.PositiveIntegerField(default=1)
     created_at = models.DateTimeField(default=timezone.now)
 
 

@@ -13,6 +13,8 @@
   const urlPart = value => encodeURIComponent(String(value ?? ''));
   const base = (code = data.classroom?.code) => `/classes/${urlPart(code)}/`;
   const termQuery = () => data.term?.key ? `?term=${urlPart(data.term.key)}` : '';
+  const termLabel = key => String(key || '').replace(/-spring$/, ' 春季').replace(/-autumn$/, ' 秋季');
+  const itemTermQuery = item => item?.term_key || item?.ended_term_key ? `?term=${urlPart(item.term_key || item.ended_term_key)}` : termQuery();
   const owner = () => data.actor?.role === 'owner';
   const writable = () => !data.readonly && ['owner', 'committee'].includes(data.actor?.role);
   const actorContext = () => data.actor?.id !== undefined && data.actor.id !== null ? {actor_context:{role:data.actor.role,id:data.actor.id}} : {};
@@ -40,7 +42,7 @@
   function studentIdentity(student, {href = null, showClass = false, showSex = false} = {}) {
     const name = href ? `<a class="student-name" href="${escape(href)}">${escape(student.name)}</a>` : `<span class="student-name">${escape(student.name)}</span>`;
     const sex = showSex && ['male','female'].includes(student.sex) ? `<svg class="sex-symbol ${student.sex}" viewBox="0 0 24 24" role="img" aria-label="${student.sex === 'male' ? '男' : '女'}"><title>${student.sex === 'male' ? '男' : '女'}</title>${student.sex === 'male' ? '<circle cx="9" cy="15" r="5"/><path d="M12.5 11.5 20 4m-5 0h5v5"/>' : '<circle cx="12" cy="9" r="5"/><path d="M12 14v8m-4-4h8"/>'}</svg>` : '';
-    return `<div class="student-identity"><span class="student-name-line">${name}${sex}</span><span class="student-secondary"><span class="student-number">${escape(student.number)}</span>${showClass && student.class_name ? `<span class="student-class">${escape(student.class_name)}</span>` : ''}</span></div>`;
+    return `<div class="student-identity"><span class="student-name-line">${name}${sex}</span><span class="student-secondary"><span class="student-number">${escape(student.number)}</span>${showClass && student.class_name ? `<span class="student-class">${escape(student.class_name)}${data.scope === 'archived' && student.term_key ? ` · ${escape(termLabel(student.term_key))}` : ''}</span>` : ''}</span></div>`;
   }
   function monthlyPolicy(policy = data.policy) { return policy?.monthly || {base:'60.00',minimum:'0.00',maximum:null}; }
   function countBadge(value,key) {
@@ -209,8 +211,10 @@
   function recordHref(record) { return `${base()}records/${urlPart(record.id)}/${termQuery()}`; }
   function recordsTable(records, {studentMode = false} = {}) {
     if (!records?.length) return empty(data.records_unavailable ? '历史记录快照待核实' : '还没有业务记录', data.records_unavailable ? '该学期没有可用的记录快照，不能用当前事实推算历史记录。' : data.readonly ? '该学期暂无可展示的记录。' : '从一次点名开始；保存后立即参与计分。', 'clipboard');
-    return `<div class="table-wrap"><table class="table"><thead><tr><th>记录与时间</th><th>类型</th><th class="desktop-only">${studentMode ? '本次状态' : '记录人数'}</th><th>查看</th></tr></thead><tbody>${records.map(record => `<tr><td><a class="student-name" href="${recordHref(record)}">${escape(record.name)}</a><span class="student-number">发生 ${escape(record.date)}${record.time ? ` · 录入 ${escape(String(record.time).replace('T',' ').slice(0,16))}` : ''}</span>${studentMode ? `<span class="mobile-record-status">${icon('clipboard')}本次：${escape(labels[record.value] || record.status_label || '—')}</span>` : ''}</td><td>${escape(kindLabels[record.kind] || record.kind)}</td><td class="desktop-only">${studentMode ? escape(labels[record.value] || record.status_label || '—') : escape(record.student_count ?? '—')}</td><td>${link('详情','eye',recordHref(record))}</td></tr>`).join('')}</tbody></table></div>`;
+    return `<div class="table-wrap"><table class="table"><thead><tr><th>记录与时间</th><th>类型</th><th class="desktop-only">${studentMode ? '本次状态' : '记录人数'}</th><th>查看</th></tr></thead><tbody>${records.map(record => `<tr><td><a class="student-name" href="${recordHref(record)}">${escape(record.name)}</a><span class="student-number">发生 ${escape(record.date)}${record.time ? ` · 录入 ${escape(displayTime(record.time))}` : ''}</span><span class="mobile-record-status">${icon('clipboard')}${studentMode ? `本次：${escape(labels[record.value] || record.status_label || '—')}` : `${record.kind === 'class' ? '异常' : '计分'} ${escape(record.student_count ?? '—')} 人`}</span></td><td>${escape(kindLabels[record.kind] || record.kind)}</td><td class="desktop-only">${studentMode ? escape(labels[record.value] || record.status_label || '—') : escape(record.student_count ?? '—')}</td><td>${link('详情','eye',recordHref(record))}</td></tr>`).join('')}</tbody></table></div>`;
   }
+  function activityCount(summary) { return summary.records_unavailable || summary.activity_count === null || summary.activity_count === undefined ? '—' : String(number(summary.activity_count)); }
+  function lastActivity(summary) { return summary.records_unavailable ? '历史记录待核实' : summary.last_activity_at ? displayTime(summary.last_activity_at) : '暂无活动'; }
   function pagination() {
     const p = data.pagination;
     if (!p || number(p.pages) < 2) return '';
@@ -222,10 +226,10 @@
   function dashboardPage() {
     if (data.actor?.role === 'anonymous' || !data.actor?.role) { loginPage(); return; }
     const classes = (data.classes || []).map(c => ({...c,...(data.class_summaries || []).find(summary => String(summary.id) === String(c.id))}));
-    const actions = owner() && !data.readonly ? button('创建班级','plus','id="create-class"','primary') : '';
-    root.innerHTML = heading('今日笃行', data.term?.label ? `${data.term.label} · 从清楚的日常记录开始` : '管理日常表现，清楚看见每一步成长', 'home', actions, '工作台 · 班级一览') +
-      (classes.length ? `<div class="card-grid">${classes.map(c => `<article class="card"><div class="card-title">${icon('book')}<h2><a href="${base(c.code)}${termQuery()}">${escape(c.name)}</a></h2></div>${c.pending ? '<p>本班数据尚待初始化核实。</p>' : `<div class="class-card-facts"><div><span class="metric-label">学生人数</span><strong>${number(c.student_count)}<small> 人</small></strong></div><div><span class="metric-label">所选学期活动</span><strong>${number(c.activity_count)}<small> 次</small></strong></div></div><p class="last-activity">${icon('clock')}学期内最近活动 ${escape(c.last_activity_at ? displayTime(c.last_activity_at) : '暂无活动')}</p>`}<div class="actions">${link('查看班级','eye',base(c.code)+termQuery())}${writable() && !c.pending && !c.archived ? link('快速录入','clipboard',`${base(c.code)}records/new/`,'primary') : ''}</div></article>`).join('')}</div>` : empty(owner() ? '创建第一个班级' : '暂无可用班级', owner() ? '创建班级后新增学生名单，即可开始使用。' : '请联系班主任确认当前账号的班级权限。')) +
-      `<section class="dashboard-overview"><div class="toolbar"><div class="section-title">${icon('users')}<h2>全员学期概况</h2></div><div class="student-list-tools"><label class="visually-hidden" for="dashboard-search">搜索姓名或学号</label><input id="dashboard-search" class="search" type="search" placeholder="搜索姓名或学号"><label class="student-sort-control" for="dashboard-kind-filter">筛选<select id="dashboard-kind-filter" aria-label="按考勤活动违纪非0次数筛选学生"><option value="all">全部学生</option><option value="attendance">考勤非0</option><option value="activity">活动非0</option><option value="discipline">违纪非0</option></select></label>${studentSortControl('dashboard-sort')}${button('导出筛选结果 CSV','download','id="export-dashboard" type="button"')}</div></div><fieldset class="class-filters"><legend>班级范围 · 可多选</legend><div class="filter-actions">${button('全选','check','id="filter-all" type="button"')}${button('清空','minus','id="filter-none" type="button"')}</div><div class="filter-options">${classes.map(c => `<label class="filter-chip"><input type="checkbox" data-filter-class value="${escape(c.id)}" checked><span>${escape(c.name)}</span></label>`).join('')}</div></fieldset><p id="dashboard-count" class="small" role="status" aria-live="polite"></p><div id="dashboard-results"></div><p class="small table-scroll-note">非0按对应类型的学期次数筛选；导出与当前班级、搜索、类型和排序结果一致。横向滚动查看全部项目，点击姓名查看个人计分明细。</p></section>` +
+    const actions = owner() && !data.readonly && data.scope !== 'archived' ? button('创建班级','plus','id="create-class"','primary') : '';
+    root.innerHTML = heading(data.scope === 'archived' ? '历史班级' : '今日笃行', data.scope === 'archived' ? '已结束管理的班级，按归档时依据只读查看。' : data.term?.label ? `${data.term.label} · 从清楚的日常记录开始` : '管理日常表现，清楚看见每一步成长', data.scope === 'archived' ? 'history' : 'home', actions, data.scope === 'archived' ? '历史 · 结束管理' : '工作台 · 班级一览') +
+      (classes.length ? `<div class="card-grid">${classes.map(c => `<article class="card"><div class="card-title">${icon('book')}<h2><a href="${base(c.code)}${itemTermQuery(c)}">${escape(c.name)}</a></h2></div>${c.archived ? `<p>${escape(termLabel(c.term_key || c.ended_term_key))} · ${c.ended_at ? escape(displayTime(c.ended_at))+' 结束管理' : '归档依据待核实'}</p>` : ''}${c.pending ? '<p>本班数据尚待初始化核实。</p>' : `<div class="class-card-facts"><div><span class="metric-label">学生人数</span><strong>${number(c.student_count)}<small> 人</small></strong></div><div><span class="metric-label">所选学期活动</span><strong>${activityCount(c)}<small> 次</small></strong></div></div><p class="last-activity">${icon('clock')}学期内最近活动 ${escape(lastActivity(c))}</p>`}<div class="actions">${link('查看班级','eye',base(c.code)+itemTermQuery(c))}${writable() && !c.pending && !c.archived ? link('快速录入','clipboard',`${base(c.code)}records/new/`,'primary') : ''}</div></article>`).join('')}</div>` : empty(data.scope === 'archived' ? '暂无历史班级' : owner() ? '创建第一个班级' : '暂无可用班级', data.scope === 'archived' ? '班级结束管理后将在此保留只读入口。' : owner() ? '创建班级后新增学生名单，即可开始使用。' : '请联系班主任确认当前账号的班级权限。')) +
+      `<section class="dashboard-overview"><div class="toolbar"><div class="section-title">${icon('users')}<h2>${data.scope === 'archived' ? '归档学生概况' : '全员学期概况'}</h2></div><div class="student-list-tools"><label class="visually-hidden" for="dashboard-search">搜索姓名或学号</label><input id="dashboard-search" class="search" type="search" placeholder="搜索姓名或学号"><label class="student-sort-control" for="dashboard-kind-filter">筛选<select id="dashboard-kind-filter" aria-label="按考勤活动违纪非0次数筛选学生"><option value="all">全部学生</option><option value="attendance">考勤非0</option><option value="activity">活动非0</option><option value="discipline">违纪非0</option></select></label>${studentSortControl('dashboard-sort')}${button('导出筛选结果 CSV','download','id="export-dashboard" type="button"')}</div></div><fieldset class="class-filters"><legend>班级范围 · 可多选</legend><div class="filter-actions">${button('全选','check','id="filter-all" type="button"')}${button('清空','minus','id="filter-none" type="button"')}</div><div class="filter-options">${classes.map(c => `<label class="filter-chip"><input type="checkbox" data-filter-class value="${escape(c.id)}" checked><span>${escape(c.name)}</span></label>`).join('')}</div></fieldset><p id="dashboard-count" class="small" role="status" aria-live="polite"></p><div id="dashboard-results"></div><p class="small table-scroll-note">非0按对应类型的学期次数筛选；导出与当前班级、搜索、类型和排序结果一致。横向滚动查看全部项目，点击姓名查看个人计分明细。</p></section>` +
       (data.recent_records?.length ? `<section style="margin-top:26px"><div class="section-title">${icon('history')}<h2>最近记录</h2></div>${recentRecords(data.recent_records)}</section>` : '');
     q('#create-class')?.addEventListener('click', createClass);
     setupDashboardStudents(classes);
@@ -241,23 +245,23 @@
       const list = sortedStudents(rows.filter(s => selected.has(String(s.class_id)) && `${s.name} ${s.number}`.toLocaleLowerCase().includes(search) && (!fields.length || fields.some(field => number(s.counts?.[field]) > 0))),q('#dashboard-sort').value);
       visibleRows = list;
       q('#export-dashboard').disabled = !list.length;
-      q('#dashboard-count').textContent = `已选 ${selected.size} / ${classes.length} 个班级 · 显示 ${list.length} 位学生 · ${data.term?.label || ''}`;
-      q('#dashboard-results').innerHTML = list.length ? scoreLegend()+`<div class="table-wrap overview-scroll" tabindex="0" role="region" aria-label="全员学期概况，可横向滚动"><table class="table overview-table">${groupedScoreHeader('学期分数')}<tbody>${list.map(s => `<tr><th scope="row" class="identity-student">${studentIdentity(s,{href:`${base(s.class_code)}students/${urlPart(s.id)}/${termQuery()}`,showClass:true,showSex:true})}</th>${groupedCountCells(s.counts)}<td class="number score-column">${scoreBadge(s.score,s.score_base,`${base(s.class_code)}students/${urlPart(s.id)}/${termQuery()}`,s.average_decimal_places ?? 2)}</td></tr>`).join('')}</tbody></table></div>` : empty(selected.size ? '没有匹配的学生' : '尚未选择班级',selected.size ? '可调整班级、姓名或非0类型筛选。' : '勾选一个或多个班级，或点击全选。','users');
+      q('#dashboard-count').textContent = `已选 ${selected.size} / ${classes.length} 个班级 · 显示 ${list.length} 位学生 · ${data.scope === 'archived' ? '各班按所查看学期的固定依据展示' : data.term?.label || ''}`;
+      q('#dashboard-results').innerHTML = list.length ? scoreLegend()+`<div class="table-wrap overview-scroll" tabindex="0" role="region" aria-label="全员学期概况，可横向滚动"><table class="table overview-table">${groupedScoreHeader('学期分数')}<tbody>${list.map(s => `<tr><th scope="row" class="identity-student">${studentIdentity(s,{href:`${base(s.class_code)}students/${urlPart(s.id)}/${itemTermQuery(s)}`,showClass:true,showSex:true})}</th>${groupedCountCells(s.counts)}<td class="number score-column">${scoreBadge(s.score,s.score_base,`${base(s.class_code)}students/${urlPart(s.id)}/${itemTermQuery(s)}`,s.average_decimal_places ?? 2)}</td></tr>`).join('')}</tbody></table></div>` : empty(selected.size ? '没有匹配的学生' : '尚未选择班级',selected.size ? '可调整班级、姓名或非0类型筛选。' : '勾选一个或多个班级，或点击全选。','users');
     };
     q('#dashboard-search').addEventListener('input',render);
     q('#dashboard-kind-filter').addEventListener('change',render);
     q('#dashboard-sort').addEventListener('change',render);
     q('#export-dashboard').addEventListener('click',() => {
       if (!visibleRows.length) return;
-      const header = ['班级','学号','姓名','性别','缺勤','迟到','请假','班级活动','院级活动','校级活动','轻度违纪','中度违纪','严重违纪','学期分数'];
+      const header = [...(data.scope === 'archived' ? ['学期'] : []),'班级','学号','姓名','性别','缺勤','迟到','请假','班级活动','院级活动','校级活动','轻度违纪','中度违纪','严重违纪','学期分数'];
       const csvCell = value => {
         let cell = String(value ?? '');
         if (/^[\s\uFEFF]*[=+\-@]/u.test(cell)) cell = `'${cell}`;
         return `"${cell.replaceAll('"','""')}"`;
       };
-      const content = [header,...visibleRows.map(s => [s.class_name,s.number,s.name,({male:'男',female:'女'})[s.sex] || '',...countFields.map(field => s.counts?.[field] ?? 0),s.score])].map(row => row.map(csvCell).join(',')).join('\r\n');
+      const content = [header,...visibleRows.map(s => [...(data.scope === 'archived' ? [termLabel(s.term_key)] : []),s.class_name,s.number,s.name,({male:'男',female:'女'})[s.sex] || '',...countFields.map(field => s.counts?.[field] ?? 0),s.score])].map(row => row.map(csvCell).join(',')).join('\r\n');
       const url = URL.createObjectURL(new Blob(['\uFEFF',content],{type:'text/csv;charset=utf-8'}));
-      const anchor = document.createElement('a'); anchor.href = url; anchor.download = `笃行-学期汇总-${data.term?.key || 'current'}.csv`; document.body.append(anchor); anchor.click(); anchor.remove();
+      const anchor = document.createElement('a'); anchor.href = url; anchor.download = `笃行-学期汇总-${data.scope === 'archived' ? '历史班级' : data.term?.key || 'current'}.csv`; document.body.append(anchor); anchor.click(); anchor.remove();
       setTimeout(() => URL.revokeObjectURL(url),1000);
       toast(`已生成 ${visibleRows.length} 位学生的 CSV。`);
     });
@@ -277,12 +281,12 @@
   function classPage() {
     const summary = data.summary || {}; const students = readStudents();
     root.innerHTML = heading('班级总览', data.term?.label || '名单、记录与自然月计分', 'book', writable() ? link('新增记录','plus',`${base()}records/new/`,'primary') : '', '班级 · 学期总览') +
-      `<div class="metrics"><div><div class="metric-label">学生人数</div><div class="metric-value">${summary.student_count ?? students.length}<small> 人</small></div><div class="metric-note">所选学期名单</div></div><div><div class="metric-label">所选学期活动</div><div class="metric-value">${number(summary.activity_count)}<small> 次</small></div><div class="metric-note">本学期内全部记录类型</div></div><div><div class="metric-label">学期内最近活动</div><div class="metric-value metric-time">${escape(summary.last_activity_at ? displayTime(summary.last_activity_at) : '暂无活动')}</div><div class="metric-note">按本学期内录入时间显示</div></div></div>` +
+      `<div class="metrics"><div><div class="metric-label">学生人数</div><div class="metric-value">${summary.student_count ?? students.length}<small> 人</small></div><div class="metric-note">所选学期名单</div></div><div><div class="metric-label">所选学期活动</div><div class="metric-value">${activityCount(summary)}<small> 次</small></div><div class="metric-note">本学期内全部记录类型</div></div><div><div class="metric-label">学期内最近活动</div><div class="metric-value metric-time">${escape(lastActivity(summary))}</div><div class="metric-note">按本学期内录入时间显示</div></div></div>` +
       `<section class="top-three-section" aria-label="五类学生次数前三名"><div class="section-title">${icon('award')}<h2>班级Top 3</h2></div><p class="small">按所选学期个人记录次数排列，零次不入榜；活动与违纪分别合并三级次数，同次数按学号排序。</p><div class="top-three-grid">${(data.top_three || []).map(group => `<article class="top-three-card"><h3><span class="top-three-heading">${icon(topThreeIcons[group.key])}${escape(group.label)}</span><small>次数前三</small></h3>${group.people?.length ? `<ol>${group.people.map((person,index) => `<li><span class="top-three-rank">${index + 1}</span>${studentIdentity(person,{href:`${base()}students/${urlPart(person.id)}/${termQuery()}`,showSex:true})}<strong>${number(person.count)}<small> 次</small></strong></li>`).join('')}</ol>` : '<p class="top-three-empty">暂无非0记录</p>'}</article>`).join('')}</div></section>` +
       `<div class="tabs" role="tablist" aria-label="班级内容"><button role="tab" id="tab-students" aria-selected="true" aria-controls="panel-students" data-tab="students">${icon('users')}学期汇总</button><button role="tab" id="tab-monthly" aria-selected="false" aria-controls="panel-monthly" data-tab="monthly" tabindex="-1">${icon('calendar')}月度明细</button><button role="tab" id="tab-records" aria-selected="false" aria-controls="panel-records" data-tab="records" tabindex="-1">${icon('clipboard')}业务记录</button></div>` +
       `<section id="panel-students" role="tabpanel" aria-labelledby="tab-students"><div class="toolbar"><div class="section-title">${icon('users')}<h2>学生汇总</h2></div><div class="student-list-tools"><label class="visually-hidden" for="student-search">搜索学生姓名或学号</label><input type="search" id="student-search" class="search" placeholder="搜索姓名或学号">${studentSortControl('student-sort')}</div></div><div id="student-results"></div><div class="table-footer"><span>${escape(policyCaption())}${data.readonly ? ' · 已固定' : ''}</span><span>点击姓名查看计分组成</span></div></section>` +
       `<section id="panel-monthly" role="tabpanel" aria-labelledby="tab-monthly" hidden></section><section id="panel-records" role="tabpanel" aria-labelledby="tab-records" hidden><form class="record-filters" method="get"><input type="hidden" name="term" value="${escape(data.term?.key || '')}"><input type="hidden" name="panel" value="records"><label>名称<input name="name" type="search" maxlength="64" value="${escape(data.record_filters?.name || '')}" placeholder="查找记录"></label><label>发生日期<input name="date" type="date" value="${escape(data.record_filters?.date || '')}"></label><label>类型<select name="kind"><option value="">全部</option>${Object.entries(kindLabels).map(([key,label]) => `<option value="${key}" ${data.record_filters?.kind === key ? 'selected' : ''}>${label}</option>`).join('')}</select></label>${button('筛选','search','type="submit"')}${link('清除','close',base()+termQuery()+'&panel=records')}</form>${recordsTable(data.records)}${pagination()}${data.august_years?.length ? `<p class="legacy-august-link">${icon('history')}8 月旧记录单独只读：${data.august_years.map(year => `<a href="${base()}august/?year=${year}">${year} 年 8 月</a>`).join(' · ')}</p>` : ''}</section>` +
-      (!data.historical ? '<section id="public-report-panel" class="public-report-panel" aria-label="公开成绩报告"></section>' : '');
+      (data.public_report ? '<section id="public-report-panel" class="public-report-panel" aria-label="公开成绩报告"></section>' : '');
     const renderStudents = () => {
       const search = q('#student-search').value.trim().toLocaleLowerCase();
       const filtered = sortedStudents(students.filter(s => `${s.name} ${s.number}`.toLocaleLowerCase().includes(search)),q('#student-sort').value);
@@ -299,22 +303,52 @@
     if (new URL(location.href).searchParams.has('page') || new URL(location.href).searchParams.get('panel') === 'records') q('#tab-records').click();
     else if (data.monthly_overview?.months?.length) q('#tab-monthly').click();
   }
+  let publicReportBusy = false, publicReportPending = null, publicReportNeedsRefresh = false, publicReportMessage = '';
   function renderPublicReport() {
     const panel = q('#public-report-panel'); if (!panel) return;
-    const report = data.public_report || {active:false};
-    panel.innerHTML = `<div class="section-title">${icon('eye')}<h2>班级公开成绩报告</h2></div><p class="small">无需学生账号。持有链接或二维码的人可查看本班当前学期的学期汇总与逐月分数；不显示业务记录与管理入口。停用或更换链接后，原链接立即失效。</p>` +
-      (report.active ? `<div class="public-report-link"><img src="${escape(report.qr_data_uri)}" alt="本班公开成绩报告二维码" width="164" height="164"><div><a href="${escape(report.url)}" target="_blank" rel="noopener noreferrer">打开公开报告</a><p class="small public-report-url">${escape(report.url)}</p><div class="actions">${button('复制访问链接','copy','id="copy-public-report"')}${button('下载二维码','download','id="download-public-qr"')}${owner() ? button('更换链接','refresh','id="rotate-public-report"')+button('停用链接','lock','id="disable-public-report"','danger') : ''}</div></div></div>` : `<div class="actions">${button('启用公开报告','plus','id="enable-public-report"','primary')}</div>`);
-    q('#copy-public-report')?.addEventListener('click',async () => { try { await copyText(report.url); toast('公开报告链接已复制。'); } catch (_) { toast('复制失败，请手动选择链接。'); } });
+    const report = data.public_report || {active:false,status:'never_enabled',revision:0};
+    const locked = publicReportBusy || !!publicReportPending || publicReportNeedsRefresh;
+    const enabled = report.can_enable ?? (owner() || report.status !== 'owner_disabled');
+    const restore = report.status === 'owner_disabled';
+    panel.innerHTML = `<div class="section-title">${icon('eye')}<h2>当前学期公开报告</h2></div><p class="small">无需学生账号。持有链接或二维码的人可查看本班当前学期的学期汇总与逐月分数；不显示业务记录与管理入口。班主任停用后仅班主任可恢复，恢复会生成新链接；旧链接持续失效。</p>` +
+      (locked ? `<div class="notice"><div><strong>${publicReportBusy ? '正在确认分享状态…' : publicReportPending ? '原操作结果待确认' : '分享状态待刷新'}</strong><p>确认完成后才能复制链接、下载二维码或发起其他分享操作。</p></div></div>` : report.active ? `<div class="public-report-link"><img src="${escape(report.qr_data_uri)}" alt="本班公开成绩报告二维码" width="164" height="164"><div><a href="${escape(report.url)}" target="_blank" rel="noopener noreferrer">打开公开报告</a><p class="small public-report-url">${escape(report.url)}</p><div class="actions">${button('复制访问链接','copy','id="copy-public-report"')}${button('下载二维码','download','id="download-public-qr"')}${report.can_rotate ? button('更换链接','refresh','id="rotate-public-report"') : ''}${report.can_disable ? button('停用链接','lock','id="disable-public-report"','danger') : ''}</div></div></div>` : enabled ? `<div class="actions">${button(restore ? '恢复分享，生成新链接' : '启用公开报告','plus','id="enable-public-report"','primary')}</div>` : `<p class="small">${restore ? '班主任已停用本班分享。请联系班主任恢复，班委不能重新启用。' : '当前班级不能启用公开报告。'}</p>`) +
+      `<p id="public-report-message" class="form-message" role="status">${escape(publicReportMessage)}</p>` +
+      (publicReportPending ? button('重试原操作，确认结果','refresh',`id="retry-public-report" ${publicReportBusy ? 'disabled' : ''}`,'primary') : publicReportNeedsRefresh ? button('重新读取分享状态','refresh',`id="refresh-public-report" ${publicReportBusy ? 'disabled' : ''}`) : '');
+    q('#copy-public-report')?.addEventListener('click',async () => { const result = await copyText(report.url,{label:'访问链接'}); if (result.copied) toast('公开报告链接已复制。'); });
     q('#download-public-qr')?.addEventListener('click',() => {
       const url=URL.createObjectURL(new Blob([report.qr_svg],{type:'image/svg+xml'}));
       const anchor=document.createElement('a'); anchor.href=url; anchor.download=`duxing-class-${data.classroom?.code || 'report'}-qr.svg`; anchor.click();
       setTimeout(() => URL.revokeObjectURL(url),1000);
     });
-    for (const action of ['enable','rotate','disable']) q(`#${action}-public-report`)?.addEventListener('click',async () => {
-      if (action !== 'enable' && !confirm(action === 'rotate' ? '更换后原链接和二维码将立即失效，确定继续吗？' : '停用后现有链接和二维码将无法访问，确定继续吗？')) return;
-      try { data.public_report = await request(`${base()}public-report/`,{action}); renderPublicReport(); toast(action === 'disable' ? '公开报告已停用。' : '公开报告链接已更新。'); }
-      catch (error) { toast(error.message); }
-    });
+    for (const action of ['enable','rotate','disable']) q(`#${action}-public-report`)?.addEventListener('click',() => changePublicReport(action));
+    q('#retry-public-report')?.addEventListener('click',() => changePublicReport());
+    q('#refresh-public-report')?.addEventListener('click',refreshPublicReport);
+  }
+  async function refreshPublicReport() {
+    if (publicReportBusy || publicReportPending) return;
+    publicReportBusy = true; renderPublicReport();
+    try { data.public_report = await request(`${base()}public-report/`,null,'GET'); publicReportNeedsRefresh = false; }
+    catch (error) { publicReportNeedsRefresh = true; publicReportMessage = error.message; if (error.status === 401) openAuth(); }
+    finally { publicReportBusy = false; renderPublicReport(); }
+  }
+  async function changePublicReport(action) {
+    if (publicReportBusy || (publicReportNeedsRefresh && !publicReportPending)) return;
+    if (!publicReportPending) {
+      if (!['enable','rotate','disable'].includes(action)) return;
+      if (action !== 'enable' && !confirm(action === 'rotate' ? '更换后原链接和二维码将立即失效，确定继续吗？' : '停用后现有链接和二维码将无法访问，仅班主任可恢复，确定继续吗？')) return;
+      publicReportPending = {action,revision:data.public_report?.revision ?? 0,submission_id:uuid(),...actorContext()};
+    }
+    publicReportBusy = true; publicReportMessage = ''; renderPublicReport();
+    try {
+      const result = await request(`${base()}public-report/`,publicReportPending);
+      data.public_report = result; publicReportPending = null; publicReportNeedsRefresh = false;
+      publicReportMessage = result.replayed ? '原操作已确认，当前分享状态已同步。' : result.active ? '公开报告链接已更新。' : '公开报告已停用。';
+    } catch (error) {
+      publicReportMessage = error.message;
+      if (error.status && error.status !== 401) { publicReportPending = null; publicReportNeedsRefresh = true; }
+      if (error.status === 401) openAuth();
+    } finally { publicReportBusy = false; renderPublicReport(); }
+    if (publicReportNeedsRefresh) await refreshPublicReport();
   }
   function renderMonthlyOverview() {
     const overview = data.monthly_overview, panel = q('#panel-monthly');
@@ -411,7 +445,7 @@
     q('#save-record')?.addEventListener('click', saveRecord);
     q('#refresh-roster')?.addEventListener('click', () => {
       if (!confirm('刷新会清除本页尚未提交的点名输入。请在最新名单上重新点名并提交，确定刷新吗？')) return;
-      drafts.clear(); location.reload();
+      drafts.clear(); location.assign(recordContextUrl());
     });
     q('#next-record')?.addEventListener('click', () => {
       if (data.record?.id) { location.assign(`${base()}records/new/`); return; }
@@ -442,6 +476,7 @@
       if (error.status === 401) openAuth(savingCode);
     } finally { draft.saving = false; recordPage(); }
   }
+  function recordContextUrl() { return `${base()}records/${data.record?.id ? urlPart(data.record.id)+'/' : 'new/'}${termQuery()}`; }
   async function switchRecordClass(code) {
     const select = q('#class-switch');
     const oldCode = data.classroom?.code;
@@ -455,7 +490,7 @@
       if (sequence !== classSwitchSequence) return;
       if (context.actor?.role === 'anonymous') throw new ApiError('该班级授权已失效。',401,'authorization_expired');
       if (String(context.classroom?.code) !== String(code)) throw new ApiError('班级上下文不一致，原草稿已保留。',409,'class_context_conflict');
-      data = context; recordKind = recordKinds.get(String(code)) || context.record?.kind || 'class'; updateClassNavigation(); recordPage(); toast('已切换班级；原班级各类型草稿仍保留在本页。');
+      data = context; recordKind = recordKinds.get(String(code)) || context.record?.kind || 'class'; history.replaceState(null,'',recordContextUrl()); updateClassNavigation(); recordPage(); toast('已切换班级；原班级各类型草稿仍保留在本页。');
     } catch (error) { select.value = oldCode || ''; if (error.status === 401) openAuth(code); else toast(error.message); }
     finally { select.disabled = false; }
   }
@@ -474,7 +509,7 @@
     let rules = q('[data-global-nav="rules"]',systemNav);
     if (!rules && owner()) { rules = document.createElement('a'); rules.dataset.globalNav = 'rules'; rules.innerHTML = icon('sliders')+'评分规则'; systemNav.append(rules); }
     if (rules) rules.hidden = !owner();
-    qa('[data-global-nav]').forEach(el => { el.href = (el.dataset.globalNav === 'rules' ? '/rules/' : '/')+termQuery(); });
+    qa('[data-global-nav]').forEach(el => { el.href = el.dataset.globalNav === 'archived' ? '/?scope=archived' : (el.dataset.globalNav === 'rules' ? '/rules/' : '/')+termQuery(); });
     let recordLink = q('[data-nav="record"]',nav);
     if (!recordLink && writable()) { recordLink = document.createElement('a'); recordLink.dataset.nav = 'record'; recordLink.setAttribute('aria-current','page'); recordLink.innerHTML = icon('clipboard')+'快速录入'; nav.append(recordLink); }
     if (recordLink) { recordLink.href = `${base()}records/new/`; recordLink.hidden = !writable(); }
@@ -550,7 +585,7 @@
     const policy = data.policy || {revision:0,weights:{}};
     const monthly = monthlyPolicy(policy), readonly = data.readonly || !owner();
     root.innerHTML = heading('统一规则，清楚计分','每次事件对应的加减分值，由班主任统一设置。','sliders',`<span class="badge">${icon(data.readonly ? 'lock' : 'key')}${data.readonly ? '历史规则只读' : '班主任设置'}</span>`,'规则 · 操行评分') +
-      `<div class="notice">${icon('book')}<div><strong>${data.readonly ? '本学期评分依据已固定' : `应用于本人全部 ${(data.classes || []).length} 个班级`}</strong><p>${data.readonly ? '历史学期保留原有权重和分数。' : '从当前学期开始生效，未来学期沿用；历史学期的规则和分数不受影响。'}</p></div></div>` +
+      `<div class="notice">${icon('book')}<div><strong>${data.readonly ? '本学期评分依据已固定' : `应用于本人 ${(data.classes || []).filter(c => !c.archived).length} 个在管班级`}</strong><p>${data.readonly ? '历史学期保留原有权重和分数。' : '从当前学期开始对在管班级生效，未来学期沿用；历史学期及已结束管理班级的冻结结果不受影响。'}</p></div></div>` +
       `<form id="rules-form"><section class="monthly-policy-group"><div class="section-title">${icon('calendar')}<h2>月度基础与分数边界</h2></div><div class="monthly-fields"><label class="field">月度基础分<input data-monthly="base" type="number" inputmode="decimal" min="0" max="999999.5" step="0.5" required value="${escape(monthly.base)}" ${readonly ? 'disabled' : ''}></label><label class="field">月度最低分<input data-monthly="minimum" type="number" inputmode="decimal" min="0" max="999999.5" step="0.5" required value="${escape(monthly.minimum)}" ${readonly ? 'disabled' : ''}></label><label class="field">月度最高分<input data-monthly="maximum" type="number" inputmode="decimal" min="0" max="999999.5" step="0.5" value="${escape(monthly.maximum ?? '')}" placeholder="留空表示无上限" ${readonly ? 'disabled' : ''}></label></div><label class="field average-digits">学期平均分显示位数<select id="average-decimal-places" ${readonly ? 'disabled' : ''}>${[0,1,2,3,4].map(places => `<option value="${places}" ${Number(policy.average_decimal_places ?? 2) === places ? 'selected' : ''}>${places} 位</option>`).join('')}</select></label><p class="small">先按基础分及各项加减分计算每月分数，再限制在最低分与最高分之间；学期分数取各计分月平均。最高分可留空。所有分值以 0.5 分为最小调整单位；显示位数只影响学期平均分展示。</p></section><div class="policy-grid">${policyGroups.map(group => `<section class="policy-group"><h2>${icon(group.icon)}${group.name}</h2>${group.items.map(key => `<label class="weight-row"><span>${labels[key]}</span><input type="number" inputmode="decimal" min="0" max="999999.5" step="0.5" required data-weight="${key}" value="${escape(policy.weights[key] ?? '0')}" ${readonly ? 'disabled' : ''} aria-label="${labels[key]}${group.direction}分值"><span>${group.direction}分</span></label>`).join('')}</section>`).join('')}</div><div class="actions" style="justify-content:space-between"><span class="small" id="monthly-summary">${escape(monthlySummary(monthly))}</span>${!readonly ? button('预览变化','eye','id="preview-policy" type="button"')+button('取消修改','undo','id="cancel-policy" type="button" disabled') : ''}</div><div id="policy-preview" hidden></div><div class="actions" style="justify-content:space-between;margin-top:24px"><span class="small" id="policy-version">${escape(policyCaption(policy))}</span>${!readonly ? button('从当前学期应用','save','id="save-policy" type="submit" disabled','primary') : ''}</div><p id="policy-message" class="form-message" role="alert"></p></form>`;
     qa('[data-weight],[data-monthly],#average-decimal-places').forEach(input => input.addEventListener('input',() => { policyDirty = true; policyPreview = null; policyPreviewKey = null; q('#policy-preview').hidden = true; q('#save-policy').disabled = true; q('#cancel-policy').disabled = false; showMessage('#policy-message','修改后请重新预览，再确认应用。'); }));
     q('#cancel-policy')?.addEventListener('click',cancelPolicyChanges);
@@ -561,8 +596,8 @@
     const el = q('#policy-preview'); el.hidden = false; el.className = 'policy-preview';
     const classes = preview.classes || [];
     el.innerHTML = `<div class="toolbar"><div class="section-title">${icon('eye')}<h2>当前学期影响预览</h2></div><span class="small">${classes.length} 个班级${preview.student_count !== undefined ? ` · ${number(preview.student_count)} 位学生` : ''}</span></div>` +
-      (classes.length ? `<div class="table-wrap"><table class="table policy-impact-table"><thead><tr><th>班级</th><th>影响学生数</th><th>分数变化人数</th><th>最大个人变化</th></tr></thead><tbody>${classes.map(c => `<tr><td>${escape(c.name)}</td><td class="number">${number(c.student_count)} 人</td><td class="number">${number(c.changed_count)} 人</td><td class="number">${fmt(c.max_absolute_change)} 分</td></tr>`).join('')}</tbody></table></div>` : empty('当前没有受影响的班级','保存后仍会作为未来学期默认规则。')) +
-      `<p class="small" style="margin-top:14px">学期平均分将显示 ${readAverageDecimalPlaces()} 位小数。已结束学期不受影响；若预览后有新的业务记录，保存时将按最新记录重新计算。</p>`;
+      (classes.length ? `<div class="table-wrap"><table class="table policy-impact-table"><thead><tr><th>班级</th><th>影响学生数</th><th>月分变化人数</th><th>学期均分变化人数</th><th>最大平均分变化</th></tr></thead><tbody>${classes.map(c => `<tr><td>${escape(c.name)}</td><td class="number">${number(c.student_count)} 人</td><td class="number">${number(c.changed_count)} 人</td><td class="number">${number(c.average_changed_count)} 人</td><td class="number">${fmt(c.max_absolute_change)} 分</td></tr>`).join('')}</tbody></table></div>` : empty('当前没有受影响的班级','保存后仍会作为未来学期默认规则。')) +
+      `<p class="small" style="margin-top:14px">月分变化人数按实际月分计算，学期均分变化人数按未舍入平均值计算。学期平均分将显示 ${readAverageDecimalPlaces()} 位小数${preview.display_changed ? '（显示精度已修改，不改变计分事实）' : ''}。历史学期及已结束管理班级不受影响；若预览后有新记录，保存时按最新记录重新计算。</p>`;
   }
   function lockPolicy(locked) {
     qa('[data-weight],[data-monthly],#average-decimal-places').forEach(input => input.disabled = locked);
@@ -606,7 +641,7 @@
     } finally { policySaving = false; lockPolicy(!!policyPending); }
   }
   let modalDirty = false, modalPending = false, modalBusy = false;
-  function modalForm({title,description,fields,submitLabel='确认保存',danger=false,url,build,onSuccess,onReady}) {
+  function modalForm({title,description,fields,submitLabel='确认保存',danger=false,url,build,onSuccess,onReady,conflictMessage}) {
     const dialog = q('#action-dialog'); const previousFocus = document.activeElement;
     dialog.innerHTML = `<form id="action-form"><div class="section-title">${icon(danger ? 'warning' : 'edit')}<h2 id="action-title">${escape(title)}</h2></div><p>${escape(description)}</p>${fields}<p id="action-message" class="form-message" role="alert"></p><div class="actions">${button('取消','close','type="button" id="action-cancel"')}${button(submitLabel,danger ? 'trash' : 'save','type="submit"',danger ? 'danger' : 'primary')}</div></form>`;
     let pending = null, busy = false;
@@ -630,6 +665,7 @@
         try { await onSuccess(result,submitted); } finally { if ('password' in submitted) submitted.password = ''; }
       } catch (error) {
         explain(error,'#action-message');
+        if (error.status === 409 && conflictMessage) showMessage('#action-message',`${error.message} ${conflictMessage}`,true);
         if (error.status && error.status !== 401) { pending = null; modalPending = false; }
         submit.innerHTML = icon(pending ? 'refresh' : 'save')+(pending ? '重试原提交' : submitLabel);
       } finally { busy = false; modalBusy = false; submit.disabled = false; cancel.disabled = !!pending; qa('input,textarea,select',form).forEach(el => el.disabled = !!pending); }
@@ -642,10 +678,32 @@
   function deleteRecord(record) {
     modalForm({title:'删除这条记录',description:`将删除「${record.name}」及其 ${record.student_count ?? readStudents().length} 位学生的记录，当前学期分数将重新计算，概要日志会保留。`,fields:'',submitLabel:'确认删除',danger:true,url:`${base()}records/${urlPart(record.id)}/`,build:() => ({action:'delete',revision:record.revision}),onSuccess:() => { currentDraft().dirty = false; location.assign(base()+termQuery()); }});
   }
+  let rosterRefreshing = false, rosterRefreshRequired = false;
+  async function refreshRosterContext(receipt) {
+    if (rosterRefreshing) return;
+    rosterRefreshing = true; rosterRefreshRequired = true;
+    // A confirmed write must never leave old counts paired with a new revision.
+    qa('#page-content button').forEach(el => { el.disabled = true; });
+    showMessage('#bulk-message',`${receipt} 正在重新读取完整名单…`);
+    try {
+      const context = await request(`${base()}roster/${termQuery()}${termQuery() ? '&' : '?'}format=json`,null,'GET');
+      if (String(context.classroom?.code) !== String(data.classroom?.code) || context.term?.key !== data.term?.key || context.actor?.role !== data.actor?.role || String(context.actor?.id) !== String(data.actor?.id)) throw new ApiError('读取的名单身份或范围已变化，请重新打开班级管理。',409,'roster_context_changed');
+      data = context; rosterRefreshRequired = false; bulkDirty = false; bulkPending = null; rosterPage();
+      const panel = q('#bulk-panel'); if (panel) panel.open = true;
+      showMessage('#bulk-message',`${receipt} 名单、人数和操作范围已同步，可继续新增下一批。`);
+      toast(context.readonly ? `${receipt} 当前范围已转为只读。` : '最新名单已读取。');
+    } catch (error) {
+      showMessage('#bulk-message',`${receipt} 名单刷新未完成，后续操作已暂停。${error.message}`,true);
+      q('#bulk-state-refresh')?.remove();
+      const retry = document.createElement('button'); retry.id = 'bulk-state-refresh'; retry.type = 'button'; retry.className = 'button primary'; retry.textContent = '重新读取名单';
+      retry.addEventListener('click',() => refreshRosterContext(receipt)); q('#bulk-message').after(retry);
+      if (error.status === 401) openAuth();
+    } finally { rosterRefreshing = false; }
+  }
   function rosterPage() {
     const students = readStudents(), canManage = owner() && !data.readonly;
     root.innerHTML = heading('班级名单与授权',data.classroom?.name || '当前学期名单管理','users',canManage ? button('批量新增','users','id="open-bulk"')+button('新增学生','plus','id="add-student"','primary') : '', '班级 · 管理') +
-      `<div class="notice">${icon(data.readonly ? 'lock' : 'calendar')}<div><strong>${data.readonly ? '已结束学期名单固定' : '新增仅加入当前学期'}</strong><p>${data.readonly ? '当前班级的名单变更不会改变本学期保存的身份与成绩。' : '新增学生参与当前学期全部已进入月份的计分，不补入已结束学期；姓名修改和移除不改动历史名单。'}</p></div></div>` +
+      `<div class="notice">${icon(data.readonly ? 'lock' : 'calendar')}<div><strong>${data.readonly ? data.classroom?.archived ? '已结束管理 · 名单固定' : '已结束学期名单固定' : '新增仅加入当前学期'}</strong><p>${data.readonly ? '当前班级的名单变更不会改变本学期保存的身份与成绩。' : '新增学生参与当前学期全部已进入月份的计分，不补入已结束学期；姓名修改和移除不改动历史名单。'}</p></div></div>` +
       `<div class="toolbar"><div class="section-title">${icon('users')}<h2>在册学生 · ${students.length} 人</h2></div><div class="student-list-tools"><label class="visually-hidden" for="roster-search">搜索姓名或学号</label><input id="roster-search" class="search" type="search" placeholder="搜索姓名或学号">${studentSortControl('roster-sort')}</div></div><div id="roster-results"></div>` +
       (canManage ? `<details id="bulk-panel" class="bulk-panel"><summary>${icon('users')}批量新增学生</summary><p class="small">可下载模板填写后直接上传 Excel，也可复制学号、姓名、性别三列并粘贴，或每行填写“学号|姓名|男/女”。性别支持 male/female，一次最多1000人。</p><div class="import-tools"><a class="button" href="/static/downloads/ams-template-add-students.xlsx" download>${icon('download')}下载 Excel 模板</a><label class="field import-file-label">选择 Excel 文件<input id="roster-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label>${button('上传并预览','upload','id="upload-roster" type="button"')}</div><p class="small">请清除模板中的六行示例后填写，学号列保持文本格式，输入列不要使用公式；文件不超过2 MiB。上传仅解析和校验，确认预览后才会正式新增。</p><form id="bulk-form"><label class="field" for="bulk-text">待新增名单<textarea id="bulk-text" name="students_text" rows="7" maxlength="140000" required autocomplete="off" spellcheck="false" placeholder="可粘贴 Excel 的学号、姓名、性别三列&#10;2026001|林沐|女&#10;2026002|陈知夏|男"></textarea></label><div class="actions" style="margin-top:14px">${button('预览名单','eye','id="preview-bulk" type="button"')}<span class="small">预览无误后，一次性加入当前学期</span></div><div id="bulk-preview" hidden></div><div class="actions" style="margin-top:16px">${button('确认新增','save','id="save-bulk" type="submit" disabled','primary')}${button('继续下一批','plus','id="next-bulk" type="button" hidden')}</div><p id="bulk-message" class="form-message" role="alert"></p></form></details>` : '') +
       (owner() ? '<section class="account-panel" id="committee-panel" aria-label="班委账号管理"></section>' : '') +
@@ -670,17 +728,32 @@
   function classDangerZone() {
     const state = data.class_management || {}, records = number(state.record_count), students = number(state.student_count);
     const deleteReason = state.has_history ? '该班已有历史学期资料，按只读规则不能删除。' : records || students ? '请依次清空当前学期数据和学生后再删除。' : '班级为空且没有历史资料，可以删除。';
-    return `<section class="danger-zone" aria-labelledby="danger-zone-title"><div class="section-title">${icon('warning')}<h2 id="danger-zone-title">危险操作</h2></div><p class="small">以下操作仅限班主任，均需输入完整班级名称确认。历史学期快照不会被清空或改写。</p><div class="danger-actions"><article><strong>清空数据</strong><p>删除当前学期 ${records} 条考勤、活动和违纪记录，保留学生、班委账号及评分规则。</p>${button('清空当前学期数据','trash',`id="clear-class-data" ${records ? '' : 'disabled'}`,'danger')}</article><article><strong>清空学生</strong><p>移出当前学期 ${students} 名学生。存在业务记录时须先清空数据；历史身份仍保留。</p>${button('清空当前学期学生','users',`id="clear-class-students" ${students && !records ? '' : 'disabled'}`,'danger')}</article><article><strong>删除班级</strong><p>${escape(deleteReason)} 删除后班委账号和公开链接同时失效。</p>${button('删除班级','trash',`id="delete-class" ${state.can_delete ? '' : 'disabled'}`,'danger')}</article></div></section>`;
+    return `<section class="danger-zone" aria-labelledby="danger-zone-title"><div class="section-title">${icon('warning')}<h2 id="danger-zone-title">危险操作</h2></div><p class="small">以下操作仅限班主任，均需输入完整班级名称确认。历史学期快照不会被清空或改写。</p><div class="danger-actions"><article><strong>清空数据</strong><p>删除当前学期 ${records} 条考勤、活动和违纪记录，保留学生、班委账号及评分规则。</p>${button('清空当前学期数据','trash',`id="clear-class-data" ${records ? '' : 'disabled'}`,'danger')}</article><article><strong>清空学生</strong><p>移出当前学期 ${students} 名学生。存在业务记录时须先清空数据；历史身份仍保留。</p>${button('清空当前学期学生','users',`id="clear-class-students" ${students && !records ? '' : 'disabled'}`,'danger')}</article><article><strong>删除班级</strong><p>${escape(deleteReason)} 删除后班委账号和公开链接同时失效。</p>${button('删除班级','trash',`id="delete-class" ${state.can_delete ? '' : 'disabled'}`,'danger')}</article><article><strong>结束管理并归档</strong><p>冻结截至归档当月的名单、记录、评分规则及成绩。之后不再增加月份或继承新学期，转入历史班级只读查看。</p>${button('结束管理并归档','history',`id="archive-class" ${state.can_archive ? '' : 'disabled'}`,'danger')}</article></div><p id="class-management-message" class="form-message" role="status"></p></section>`;
   }
 
   function setupClassDangerZone() {
+    let loading = false;
     const configs = {
-      clear_data:{button:'#clear-class-data',title:'清空当前学期数据',submit:'确认清空数据',description:`将永久删除「${data.classroom?.name || ''}」当前学期的考勤、活动和违纪记录，并立即重新计算成绩。学生名单、历史学期和操作日志保留。`},
-      clear_students:{button:'#clear-class-students',title:'清空当前学期学生',submit:'确认清空学生',description:`将「${data.classroom?.name || ''}」的所有学生移出当前学期名单。历史学期身份和成绩保留；此操作仅在当前学期已无业务记录时执行。`},
-      delete_class:{button:'#delete-class',title:'删除班级',submit:'确认删除班级',description:`将永久删除空班级「${data.classroom?.name || ''}」，班委账号与公开链接会立即失效。已有历史学期资料的班级不允许删除。`},
+      clear_data:{button:'#clear-class-data',title:'清空当前学期数据',submit:'确认清空数据',description:'将永久删除本班当前学期的考勤、活动和违纪记录，并立即重新计算成绩。学生名单、历史学期和操作日志保留。'},
+      clear_students:{button:'#clear-class-students',title:'清空当前学期学生',submit:'确认清空学生',description:'将所有学生移出当前学期名单。历史学期身份和成绩保留；此操作仅在当前学期已无业务记录时执行。'},
+      delete_class:{button:'#delete-class',title:'删除班级',submit:'确认删除班级',description:'将永久删除空班级，班委账号与公开链接会立即失效。已有历史学期资料的班级不允许删除。'},
+      archive:{button:'#archive-class',title:'结束管理并归档',submit:'确认结束管理',description:'将冻结下列范围内的名单、业务记录、评分规则和成绩。后续月份不再增加基础分，未来学期不再继承；班级将移入历史班级，仅供查看。'},
     };
-    Object.entries(configs).forEach(([action,config]) => q(config.button)?.addEventListener('click',() => {
-      modalForm({title:config.title,description:config.description,fields:`<label class="field">输入完整班级名称以确认<input name="confirmation" required autocomplete="off" maxlength="30" placeholder="${escape(data.classroom?.name || '')}"></label>`,submitLabel:config.submit,danger:true,url:`${base()}management/`,build:form => ({action,revision:data.classroom?.revision ?? 0,confirmation:form.elements.confirmation.value.trim()}),onSuccess:result => location.assign(result.url || '/'),});
+    Object.entries(configs).forEach(([action,config]) => q(config.button)?.addEventListener('click',async () => {
+      if (loading || rosterRefreshRequired || bulkPending || bulkSaving || modalBusy || modalPending) return;
+      if (bulkDirty) { showMessage('#class-management-message','请先保存或清除尚未提交的批量名单，再进行班级管理操作。',true); return; }
+      loading = true; const clicked = q(config.button); clicked.disabled = true;
+      showMessage('#class-management-message','正在读取最新操作范围…');
+      try {
+        const preview = await request(`${base()}management/`,null,'GET');
+        if (String(preview.class_id) !== String(data.classroom?.id) || preview.term_key !== data.term?.key) throw new ApiError('班级或学期范围已变化，请重新打开当前班级管理。',409,'management_scope_changed');
+        const allowed = action === 'clear_data' ? preview.record_count > 0 : action === 'clear_students' ? preview.can_clear_students : action === 'delete_class' ? preview.can_delete : preview.can_archive;
+        if (!allowed) throw new ApiError('当前班级不满足此操作条件，请刷新名单后重新核对。',409,'management_not_allowed');
+        const scope = `<div class="management-preview"><strong>${escape(data.classroom?.name)} · ${escape(data.term?.label || preview.term_key)}</strong><p>在册 ${number(preview.student_count)} 人 · 业务记录 ${number(preview.record_count)} 条</p>${action === 'archive' ? `<p>截止 ${escape(preview.freeze_date)} · 冻结月份 ${escape((preview.freeze_months || []).join('、') || '无计分月份')}</p>` : ''}<p>此范围发生变化时，操作会停止，须重新打开并确认。</p></div>`;
+        modalForm({title:config.title,description:config.description,fields:scope+`<label class="field">输入完整班级名称以确认<input name="confirmation" required autocomplete="off" maxlength="30" placeholder="${escape(data.classroom?.name || '')}"></label>`,submitLabel:config.submit,danger:true,url:`${base()}management/`,build:form => ({action,term_key:preview.term_key,revision:preview.class_revision,report_revision:preview.report_revision,...(action === 'archive' ? {freeze_date:preview.freeze_date} : {}),confirmation:form.elements.confirmation.value.trim()}),onSuccess:result => location.assign(result.url || '/'),conflictMessage:'操作范围已变化或确认不匹配。请关闭此窗口，重新打开操作并核对最新范围；本次未执行。'});
+        showMessage('#class-management-message','');
+      } catch (error) { explain(error,'#class-management-message'); }
+      finally { loading = false; clicked.disabled = false; }
     }));
   }
   let bulkDirty = false, bulkPending = null, bulkSaving = false;
@@ -743,18 +816,15 @@
       bulkSaving = true; setLock(true); saveButton.disabled = true; saveButton.innerHTML = icon('save')+'正在新增…'; showMessage('#bulk-message','正在保存整批名单…');
       try {
         const result = await request(`${base()}roster/`,bulkPending);
-        data.classroom.revision = result.revision; data.students = [...readStudents(),...(result.students || [])];
         bulkPending = null; bulkDirty = false; preview = null; previewText = null;
-        saveButton.innerHTML = icon('check')+'已新增'; q('#next-bulk').hidden = false;
-        showMessage('#bulk-message',`${result.replayed ? '此前同一次提交已完成，未重复新增。' : '整批名单已保存。'} 本次共 ${number(result.count)} 人${number(result.reactivate_count) ? `，其中恢复 ${number(result.reactivate_count)} 人` : ''}。刷新页面可查看最新名单。`);
-        const old = q('#bulk-refresh'); old?.remove();
-        const refresh = document.createElement('a'); refresh.id = 'bulk-refresh'; refresh.className = 'button'; refresh.href = `${base()}roster/${termQuery()}`; refresh.innerHTML = icon('refresh')+'查看最新名单'; q('#next-bulk').parentElement.append(refresh);
+        input.value = ''; fileInput.value = ''; bulkSaving = false;
+        await refreshRosterContext(`${result.replayed ? '此前同一次提交已完成，未重复新增。' : '整批名单已保存。'} 本次共 ${number(result.count)} 人${number(result.reactivate_count) ? `，其中恢复 ${number(result.reactivate_count)} 人` : ''}。`);
       } catch (error) {
         explain(error,'#bulk-message');
         if (error.status && error.status !== 401) bulkPending = null;
         if (error.status === 409) { preview = null; previewText = null; }
         saveButton.innerHTML = icon(bulkPending ? 'refresh' : 'save')+(bulkPending ? '重试原提交' : '确认新增'); saveButton.disabled = !bulkPending && !preview?.length;
-      } finally { bulkSaving = false; setLock(!!bulkPending); }
+      } finally { bulkSaving = false; setLock(!!bulkPending || rosterRefreshRequired); }
     });
     q('#next-bulk').addEventListener('click',() => { input.value = ''; fileInput.value = ''; input.disabled = false; bulkDirty = false; q('#bulk-preview').hidden = true; q('#next-bulk').hidden = true; saveButton.disabled = true; saveButton.innerHTML = icon('save')+'确认新增'; showMessage('#bulk-message',''); input.focus(); });
   }
@@ -776,17 +846,17 @@
   function credentialText(credentials) {
     return `笃行 · 学生操行管理系统\n班级：${credentials.class_name || data.classroom?.name || ''}\n班委用户名：${credentials.username}\n密码：${credentials.password}\n登录后仅可操作本班，授权有效3小时。${credentials.active === false ? '\n账号当前已停用，启用后方可登录。' : ''}`;
   }
-  async function copyText(text) {
+  async function copyText(text, {label = '登录信息'} = {}) {
     try {
       if (!navigator.clipboard?.writeText) throw new Error('clipboard_unavailable');
-      await navigator.clipboard.writeText(text); toast('完整登录信息已复制。');
+      await navigator.clipboard.writeText(text); toast(`${label}已复制。`); return {copied:true};
     } catch (_) {
       const dialog = q('#copy-dialog');
-      dialog.innerHTML = `<div class="section-title">${icon('copy')}<h2 id="copy-title">手动复制登录信息</h2></div><p>浏览器未允许自动写入剪贴板。请复制下方已选中的完整文本。</p><label class="field">完整登录信息<textarea id="manual-copy-text" rows="7" readonly spellcheck="false"></textarea></label><div class="actions">${button('重新全选','copy','id="select-copy-text"')}${button('关闭','close','id="close-copy-dialog"')}</div>`;
+      dialog.innerHTML = `<div class="section-title">${icon('copy')}<h2 id="copy-title">手动复制${escape(label)}</h2></div><p>尚未写入剪贴板。浏览器未允许自动复制，请手动复制下方已选中的完整文本。</p><label class="field">${escape(label)}<textarea id="manual-copy-text" rows="7" readonly spellcheck="false"></textarea></label><div class="actions">${button('重新全选','copy','id="select-copy-text"')}${button('关闭','close','id="close-copy-dialog"')}</div>`;
       q('#manual-copy-text').value = text;
       if (!dialog.open) dialog.showModal();
       const select = () => { q('#manual-copy-text').focus(); q('#manual-copy-text').select(); };
-      q('#select-copy-text').addEventListener('click',select); q('#close-copy-dialog').addEventListener('click',() => dialog.close()); select();
+      q('#select-copy-text').addEventListener('click',select); q('#close-copy-dialog').addEventListener('click',() => dialog.close()); select(); return {copied:false};
     }
   }
   async function copyAccountCredentials(id,buttonElement) {
@@ -827,18 +897,20 @@
     },onReady:form => { if (action === 'create') form.elements.username.addEventListener('input',() => { q('#full-username-preview').textContent = `${data.committee_prefix}.${form.elements.username.value.trim().toLowerCase() || '…'}`; }); },onSuccess:(result,submitted) => { data.committee_accounts = result.accounts; data.committee_limit = result.limit || 5; data.committee_prefix = result.prefix || data.committee_prefix; renderCommitteeAccounts(); if (['create','reset_password'].includes(action) && result.receipt) showCredentialReceipt(result.receipt,submitted.password); else toast('班委账号设置已保存。'); }});
   }
   function eventsPage() {
-    const eventLabels = {record_created:'新增记录',record_updated:'修改记录',record_deleted:'删除记录',roster_add:'新增学生',roster_edit:'修改名单',roster_remove:'移除学生',class_data_cleared:'清空数据',class_students_cleared:'清空学生',rules_updated:'评分规则更新',committee_create:'新增班委账号',committee_update:'修改班委名称',committee_reset_password:'班委密码重置',committee_deactivate:'停用班委账号',committee_activate:'启用班委账号',committee_credentials_read:'读取登录信息用于复制',class_created:'创建班级',class_archived:'归档班级'};
+    const eventLabels = {record_created:'新增记录',record_updated:'修改记录',record_deleted:'删除记录',roster_add:'新增学生',roster_edit:'修改名单',roster_remove:'移除学生',class_data_cleared:'清空数据',class_students_cleared:'清空学生',rules_updated:'评分规则更新',committee_create:'新增班委账号',committee_update:'修改班委名称',committee_reset_password:'班委密码重置',committee_deactivate:'停用班委账号',committee_activate:'启用班委账号',committee_credentials_read:'读取登录信息用于复制',class_created:'创建班级',class_archived:'结束管理并归档',public_report_enabled:'启用公开报告',public_report_restored:'恢复公开报告',public_report_rotated:'更换公开报告链接',public_report_disabled:'停用公开报告'};
     // Normalize only the old system-generated roster label; audit storage stays immutable.
     const eventSummary = event => event.kind === 'roster_add' ? String(event.summary).replace(/^(批量)?补录(?=\d+名学生)/,'$1新增') : event.summary;
     const events = data.events || []; const currentKind = new URL(location.href).searchParams.get('kind') || '';
     root.innerHTML = heading('全学期操作记录',`${data.classroom?.name || '班级'} · 汇集所有学期的重要操作，仅班主任可查看`,'history','', '班级 · 操作记录') +
       `<div class="notice">${icon('history')}<div><strong>本页不按上方学期筛选</strong><p>展示该班所有学期的概要日志，仅供查看。班委操作按具体账号记录；早期未绑定账号的日志保留原有身份标记。</p></div></div><div class="toolbar"><div class="section-title">${icon('history')}<h2>操作时间线</h2></div><label class="inline-field">事件类型<select id="event-kind"><option value="">全部类型</option>${Object.entries(eventLabels).map(([key,label]) => `<option value="${key}" ${key === currentKind ? 'selected' : ''}>${label}</option>`).join('')}</select></label></div>` +
-      (events.length ? `<ul class="timeline">${events.map(event => `<li><small>${escape(displayTime(event.time))} · ${escape(event.actor_label || '班委')}</small><p>${escape(eventSummary(event))}</p><div class="event-meta">${escape(eventLabels[event.kind] || event.kind || '业务变更')}${event.affected_count !== undefined ? ` · 影响 ${number(event.affected_count)} 人` : ''}${event.source ? ` · ${escape(({web:'网页',admin:'后台',agent:'Agent'})[event.source] || event.source)}` : ''}</div></li>`).join('')}</ul>${pagination()}` : empty('暂无概要事件',currentKind ? '该类型当前没有可展示的事件。' : '新增记录、名单变化、评分调整及密码重设将在这里留下摘要。','history'));
+      (events.length ? `<ul class="timeline">${events.map(event => `<li><small>${escape(displayTime(event.time))} · ${escape(event.actor_label || '班委')}</small><p>${escape(eventSummary(event))}</p><div class="event-meta">${escape(eventLabels[event.kind] || event.kind || '业务变更')}${event.affected_count !== undefined ? ` · 影响 ${number(event.affected_count)} ${escape(event.affected_unit || (event.kind === 'class_data_cleared' ? '条' : '人'))}` : ''}${event.source ? ` · ${escape(({web:'网页',admin:'后台',agent:'Agent'})[event.source] || event.source)}` : ''}</div></li>`).join('')}</ul>${pagination()}` : empty('暂无概要事件',currentKind ? '该类型当前没有可展示的事件。' : '新增记录、名单变化、评分调整及密码重设将在这里留下摘要。','history'));
     q('#event-kind').addEventListener('change',event => { const url = new URL(location.href); if (event.target.value) url.searchParams.set('kind',event.target.value); else url.searchParams.delete('kind'); url.searchParams.delete('page'); location.assign(url.pathname+url.search); });
   }
   function displayTime(value) {
     if (!value) return '';
-    const date = new Date(value);
+    // Legacy snapshots contain Beijing wall time without an offset. Never infer the viewer's timezone.
+    const raw = String(value), normalized = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/.test(raw) ? raw.replace(' ','T')+'+08:00' : raw;
+    const date = new Date(normalized);
     return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
   }
   function loginPage() {
@@ -862,9 +934,10 @@
     const title = error.title || (['401','unauthorized','authorization_expired'].includes(code) ? '授权已失效' : ['403','forbidden'].includes(code) ? '当前身份无法查看此页' : ['404','not_found'].includes(code) ? '没有找到这项内容' : '暂时无法完成操作');
     root.innerHTML = `<section class="error-panel">${icon('warning')}<div class="eyebrow">${escape(code || '笃行')}</div><h1>${escape(title)}</h1><p>${escape(error.message || '请返回工作台，确认班级与当前授权后重新进入。')}</p><div class="actions">${link('返回工作台','home','/')}${data.actor?.role === 'anonymous' ? link('班主任登录','login','/login/') : ''}</div></section>`;
   }
-  function hasUnsavedChanges() { return modalDirty || modalPending || modalBusy || policyDirty || policyPending || policySaving || bulkDirty || bulkPending || bulkSaving || Array.from(drafts.values()).some(draft => draft.dirty || draft.pending || draft.saving); }
+  function hasUnsavedChanges() { return publicReportBusy || publicReportPending || modalDirty || modalPending || modalBusy || policyDirty || policyPending || policySaving || bulkDirty || bulkPending || bulkSaving || Array.from(drafts.values()).some(draft => draft.dirty || draft.pending || draft.saving); }
   window.addEventListener('beforeunload',event => { if (hasUnsavedChanges()) { event.preventDefault(); event.returnValue = ''; } });
   function navigateFromRules(url, restore = () => {}) {
+    if (publicReportBusy || publicReportPending) { restore(); toast('分享操作结果尚未确认，请先重试原操作。'); return; }
     const recordChanged = page === 'record' && Array.from(drafts.values()).some(draft => draft.dirty || draft.pending || draft.saving);
     const rosterChanged = page === 'roster' && (bulkDirty || bulkPending || bulkSaving);
     const ruleChanged = page === 'rules' && (policyDirty || policyPending || policySaving);
@@ -894,7 +967,7 @@
   },true);
   q('form[action="/logout/"]')?.addEventListener('submit',async event => {
     event.preventDefault();
-    if (modalBusy || modalPending || policySaving || policyPending || bulkSaving || bulkPending || Array.from(drafts.values()).some(draft => draft.saving || draft.pending)) { toast('提交结果尚未确认，请先核对或重试原提交。'); return; }
+    if (publicReportBusy || publicReportPending || modalBusy || modalPending || policySaving || policyPending || bulkSaving || bulkPending || Array.from(drafts.values()).some(draft => draft.saving || draft.pending)) { toast('提交结果尚未确认，请先核对或重试原提交。'); return; }
     if (hasUnsavedChanges() && !confirm('本页有尚未保存的输入。确认退出并放弃这些草稿吗？')) return;
     const submit = q('button',event.currentTarget); submit.disabled = true;
     try { const result = await request('/logout/',{}); drafts.clear(); policyDirty = false; bulkDirty = false; bulkPending = null; location.assign(result.url || '/'); }

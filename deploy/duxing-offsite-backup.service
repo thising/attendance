@@ -1,0 +1,20 @@
+[Unit]
+Description=Verify Duxing business archives and encrypted NAS recovery backups
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/bin/python3 /usr/local/libexec/duxing/nas_backup.py --config /etc/duxing/nas-backup.json
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/duxing/backup-state
+TimeoutStartSec=50min
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

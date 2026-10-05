@@ -41,17 +41,12 @@ def change_roster(request,code,payload):
     classroom=get_class(code)
     actor=actor_for(request,classroom,owner_only=True)
     action=payload.get('action')
+    if action == 'archive':
+        raise BusinessError('legacy_archive_retired', '请在班级管理中重新预览并确认结束管理。', 409)
     require_ready(classroom)
     current=calendar.writable_term(payload.get('term_key'))
     def apply():
         require_revision(classroom.revision,payload.get('revision'))
-        if action=='archive':
-            classroom.archived=True
-            classroom.revision+=1
-            classroom.save(update_fields=['archived','revision'])
-            event(actor,classroom,'class_archived','归档班级，保留名单与历史记录',revision=classroom.revision)
-            mark_report_dirty(classroom)
-            return {'revision':classroom.revision,'url':f'/classes/{code}/'}
         if action in ('preview_add','bulk_add'):
             text=payload.get('students_text','')
             if not isinstance(text,str):raise BusinessError('invalid_roster','批量名单格式无效。')

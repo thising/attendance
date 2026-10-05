@@ -137,7 +137,7 @@ def main():
         raise RuntimeError('Legacy restore/source integrity check failed.')
     result = {'source_sha256': source_sha,
               'source_counts': {table: item['count'] for table,item in original['facts'].items()},
-              'schema_migration': 'production-2026 0001 -> 0010',
+              'schema_migration': 'production-2026 0001 -> 0011',
               'source_facts_preserved': True, 'nonzero_discipline_preserved': True,
               'current_term_baseline': args.as_of, 'current_reports': report_count,
               'restore_verified': True}

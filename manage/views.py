@@ -1,7 +1,9 @@
 """Authenticated workspace adapters; business writes live in services."""
 import json
+import re
+from copy import deepcopy
 from functools import wraps
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import login, logout
 from django.core.paginator import Paginator
 from django.db import OperationalError
 from django.db.models import Count, Max, Min, Q
@@ -13,12 +15,13 @@ from manage.models import Class, ClassTerm, Activity, AuditEvent, Student, Publi
 from manage.services import calendar
 from manage.services.access import get_class, actor_for, owner_actor, authorize, committee_actor
 from manage.services.errors import BusinessError
-from manage.services.scoring import class_report, class_top_three, policy_for, roster_for
+from manage.services.scoring import class_report, class_top_three, policy_for, roster_for, report_is_frozen
 from manage.services.records import save_record, record_roster
 from manage.services.roster import change_roster, create_class
 from manage.services.rules import change_rules
 from manage.services.committee import sign_in, manage_accounts, account_list, ACTIVE_LIMIT, login_credentials
-from manage.services.login_guard import check_login
+from manage.services.login_guard import check_login, authenticate_owner as authenticate
+from manage.services.timestamps import beijing_iso
 from django.views.decorators.debug import sensitive_post_parameters, sensitive_variables
 from django.views.decorators.cache import never_cache
 from manage.services import monthly
@@ -70,7 +73,19 @@ def failure(request,exc):
 
 
 def class_item(c):
-    return {'id':c.pk,'code':c.code,'name':c.classname,'revision':c.revision,'archived':c.archived}
+    return {'id':c.pk,'code':c.code,'name':c.classname,'revision':c.revision,
+            'report_revision':c.report_revision,'archived':c.archived,
+            'ended_at':beijing_iso(c.ended_at),'ended_term_key':c.ended_term_key}
+
+
+def report_records(report):
+    # Normalize response copies only. An established historical snapshot is
+    # immutable, including its old timezone-less representation.
+    records = deepcopy(report.get('activities', []))
+    for record in records:
+        if record.get('time'):
+            record['time'] = beijing_iso(record['time'])
+    return records
 
 
 def actor_item(actor):
@@ -83,13 +98,15 @@ def common(request,classroom=None,term=None,actor=None):
     term=term or calendar.display_term(today)
     classes=[]
     identity={'role':'anonymous','label':'访客','id':None,'expires_at':None}
+    scope='archived' if (classroom and classroom.archived) or (not classroom and request.GET.get('scope')=='archived') else 'active'
     if request.user.is_authenticated:
-        classes=list(Class.objects.filter(owner=request.user).order_by('classname','id'))
+        classes=list(Class.objects.filter(owner=request.user,archived=scope=='archived').order_by('classname','id'))
         identity=actor_item(owner_actor(request))
     else:
         try:
             account,granted=committee_actor(request)
             classes=[account.inclass]
+            if account.inclass.archived:scope='archived'
             identity=actor_item(granted)
         except BusinessError:
             pass
@@ -97,33 +114,37 @@ def common(request,classroom=None,term=None,actor=None):
     readonly=calendar.term_for_date(today)!=term or bool(classroom and (classroom.archived or classroom.legacy_pending))
     if today.month==8:reason='8 月暂停业务录入，仅可查看历史数据。'
     elif classroom and classroom.legacy_pending:reason='旧库迁移基线尚待核对。'
-    elif classroom and classroom.archived:reason='班级已归档，仅可查看。'
+    elif classroom and classroom.archived:reason='班级已结束管理，名单和成绩已冻结，仅可查看。' if classroom.ended_at else '班级归档依据待核实，暂不展示推算成绩。'
     elif readonly:reason='已结束或未开始学期 · 只读'
     else:reason=''
-    return {'classes':[class_item(c) for c in classes],'classroom':class_item(classroom) if classroom else None,
+    historical=term.end <= today or bool(classroom and classroom.archived) or scope=='archived'
+    return {'classes':[class_item(c) for c in classes],'classroom':class_item(classroom) if classroom else None,'scope':scope,
         'actor':identity,'term':{'key':term.key,'label':term.label},'today':today.isoformat(),
-        'start_date':term.start.isoformat(),'readonly':readonly,'historical':term.end <= today,'readonly_reason':reason,
+        'start_date':term.start.isoformat(),'readonly':readonly or scope=='archived','historical':historical,'readonly_reason':reason,
         'readonly_label':'数据待核实' if classroom and classroom.legacy_pending else '班级已归档' if classroom and classroom.archived else '历史快照 · 只读' if term.end <= today else '非当前学期 · 只读',
         'terms':term_options(classroom,today,classes),'user_label':identity.get('username',''),
         'login_role':'committee' if request.GET.get('role')=='committee' else 'owner'}
 
 
 def class_metrics(classroom,student_count,term,report=None):
-    if term.end <= calendar.business_today():
-        activities = (report or class_report(classroom,term)).get('activities')
+    if classroom.archived or term.end <= calendar.business_today() or (report and report_is_frozen(report)):
+        data=report if report is not None else class_report(classroom,term)
+        activities = data.get('activities')
         if activities is None:
             return {'student_count':student_count,'activity_count':None,'last_activity_at':None,
                     'records_unavailable':True}
         return {'student_count':student_count,'activity_count':len(activities),
-                'last_activity_at':max((a['time'] for a in activities),default=None)}
+                'last_activity_at':max((beijing_iso(a['time']) for a in activities),default=None)}
     stats=classroom.activity_set.filter(occurred_on__gte=term.start,occurred_on__lt=term.end).aggregate(
         activity_count=Count('id'),last_activity_at=Max('time'))
-    stats['last_activity_at']=stats['last_activity_at'].isoformat(timespec='seconds') if stats['last_activity_at'] else None
+    stats['last_activity_at']=beijing_iso(stats['last_activity_at'])
     return {'student_count':student_count,**stats}
 
 
 def term_options(classroom,today,classes=None):
     term=calendar.display_term(today)
+    if classroom and classroom.archived and classroom.ended_term_key:
+        term=calendar.parse_term(classroom.ended_term_key)
     authorized=[classroom] if classroom else list(classes or [])
     starts=[c.started_on for c in authorized]
     if authorized:
@@ -137,13 +158,15 @@ def term_options(classroom,today,classes=None):
     start=start or calendar.display_term(today)
     result=[]
     while term.start>=start.start and len(result)<80:
-        result.append({'key':term.key,'label':term.label,'readonly':calendar.term_for_date(today)!=term})
+        result.append({'key':term.key,'label':term.label,'readonly':bool(classroom and classroom.archived) or calendar.term_for_date(today)!=term})
         term=calendar.previous_term(term)
     return result
 
 
-def selected_term(request):
+def selected_term(request,classroom=None):
     key=request.GET.get('term')
+    if not key and classroom and classroom.archived and classroom.ended_term_key:
+        key=classroom.ended_term_key
     return calendar.parse_term(key) if key else calendar.display_term()
 
 
@@ -163,12 +186,12 @@ def class_context(request,code,owner_only=False,term=None):
             data['actor']={'role':'anonymous','label':'访客','expires_at':None}
             return classroom,None,page(request,'login',data)
         raise
-    return classroom,actor,common(request,classroom,term or selected_term(request),actor)
+    return classroom,actor,common(request,classroom,term or selected_term(request,classroom),actor)
 
 
 def record_item(activity):
     return {'id':activity.pk,'name':activity.name,'details':activity.details,'kind':activity.activity_type,'date':activity.occurred_on.isoformat(),
-            'time':activity.time.isoformat(timespec='minutes'),
+            'time':beijing_iso(activity.time,timespec='minutes'),
             'revision':activity.revision,'status':activity.status,'student_count':getattr(activity,'student_count',None),
             'url':f'/classes/{activity.inclass.code}/records/{activity.pk}/'}
 
@@ -204,13 +227,19 @@ def index(request):
     data['dashboard_students']=[]
     for item in data['classes']:
         c=get_class(item['code'])
-        if c.legacy_pending:
-            data['class_summaries'].append({**item,'pending':True})
+        if c.legacy_pending or (c.archived and (not c.ended_at or not c.ended_term_key)):
+            data['class_summaries'].append({**item,'pending':True,'records_unavailable':True})
         else:
-            report=class_report(c,term)
+            class_term=selected_term(request,c)
+            try:report=class_report(c,class_term)
+            except BusinessError as exc:
+                if exc.code!='class_archive_unverified':raise
+                data['class_summaries'].append({**item,'pending':True,'records_unavailable':True})
+                continue
             if 'policy' not in data:data['policy']=report['policy']
-            data['class_summaries'].append({**item,**class_metrics(c,report['summary']['student_count'],term,report)})
+            data['class_summaries'].append({**item,'term_key':class_term.key,**class_metrics(c,report['summary']['student_count'],class_term,report)})
             data['dashboard_students'].extend({**row,'class_id':c.pk,'class_name':c.classname,'class_code':c.code,
+                'term_key':class_term.key,
                 'score_base':monthly.score_base(report),
                 'average_decimal_places':report.get('policy',{}).get('average_decimal_places',2)}
                 for row in report['rows'])
@@ -259,7 +288,7 @@ def class_authorize(request,code):
 def class_info(request,code):
     classroom,actor,data=class_context(request,code)
     if actor is None:return data
-    term=selected_term(request)
+    term=selected_term(request,classroom)
     report=class_report(classroom,term)
     data.update(students=report['rows'],top_three=class_top_three(report['rows']),
         summary=class_metrics(classroom,report['summary']['student_count'],term,report),
@@ -275,10 +304,11 @@ def class_info(request,code):
         try:day=date.fromisoformat(day).isoformat()
         except ValueError:raise BusinessError('invalid_record_date','查询日期无效。')
     data['record_filters']={'kind':kind,'name':name,'date':day}
-    if term.end <= calendar.business_today():
+    frozen=report_is_frozen(report) or classroom.archived or term.end <= calendar.business_today()
+    if frozen:
         data['records_unavailable']='activities' not in report
         records=[{**record,'student_count':archived_record_count(record,report['policy']['weights'])}
-                 for record in report.get('activities',[])]
+                 for record in report_records(report)]
         if kind in ('class','activity','discipline'):records=[r for r in records if r['kind']==kind]
         if name:records=[r for r in records if name.casefold() in r['name'].casefold()]
         if day:records=[r for r in records if r['date']==day]
@@ -289,7 +319,7 @@ def class_info(request,code):
         if name:records=records.filter(name__icontains=name)
         if day:records=records.filter(occurred_on=day)
     listing=Paginator(records,30).get_page(request.GET.get('page',1))
-    data['records']=list(listing) if term.end <= calendar.business_today() else [record_item(r) for r in listing]
+    data['records']=list(listing) if frozen else [record_item(r) for r in listing]
     data['pagination']={'page':listing.number,'pages':listing.paginator.num_pages,'count':listing.paginator.count}
     return page(request,'class',data)
 
@@ -308,7 +338,7 @@ def record_page(request,code,record_id=None):
     if record_id:
         if request.GET.get('term'):
             candidate=selected_term(request)
-            if candidate.end <= calendar.business_today():
+            if classroom.archived or candidate.end <= calendar.business_today():
                 historical=class_report(classroom,candidate)
                 archived=next((a for a in historical.get('activities',[]) if a['id']==record_id),None)
                 if archived:archive_term=candidate
@@ -316,7 +346,7 @@ def record_page(request,code,record_id=None):
             from manage.models import ClassTerm
             for snapshot in ClassTerm.objects.filter(inclass=classroom,archived_data__isnull=False):
                 candidate=calendar.parse_term(snapshot.term_key)
-                if candidate.end > calendar.business_today():continue
+                if not classroom.archived and candidate.end > calendar.business_today():continue
                 archived=next((a for a in snapshot.archived_data.get('activities',[]) if a['id']==record_id),None)
                 if archived:
                     archive_term=candidate
@@ -325,7 +355,7 @@ def record_page(request,code,record_id=None):
             try:activity=Activity.objects.get(pk=record_id,inclass=classroom)
             except Activity.DoesNotExist:raise BusinessError('not_found','记录不存在或不属于本班。',404)
     august_legacy=bool(activity and activity.occurred_on.month==8)
-    term=archive_term or (calendar.term_for_date(activity.occurred_on) if activity else calendar.display_term())
+    term=archive_term or (calendar.term_for_date(activity.occurred_on) if activity else selected_term(request,classroom))
     term=term or calendar.display_term()
     data=common(request,classroom,term,actor)
     if august_legacy:
@@ -333,9 +363,9 @@ def record_page(request,code,record_id=None):
                     readonly_reason='8 月不属于计分学期；仅展示当时明确保存的个人记录，不推算完整名单或成绩。',
                     record_return_url=f'/classes/{classroom.code}/august/?year={activity.occurred_on.year}')
     if classroom.legacy_pending:raise BusinessError('legacy_baseline_pending','旧库记录尚待迁移核对。',409)
-    if term.end <= calendar.business_today() and record_id and not august_legacy:
+    if (classroom.archived or term.end <= calendar.business_today()) and record_id and not august_legacy:
         report=class_report(classroom,term)
-        archived=next((a for a in report.get('activities',[]) if a['id']==record_id),None)
+        archived=next((a for a in report_records(report) if a['id']==record_id),None)
         if archived is None:
             raise BusinessError('historical_record_unavailable','该记录尚无经核实的历史快照。',409)
         students=report.get('record_roster',report['rows'])
@@ -390,7 +420,7 @@ def august_records(request,code):
 def student_detail(request,code,student_id):
     classroom,actor,data=class_context(request,code)
     if actor is None:return data
-    term=selected_term(request)
+    term=selected_term(request,classroom)
     month_start=monthly.selected_month(request.GET['month'],term) if 'month' in request.GET else None
     report=class_report(classroom,term)
     student=next((s for s in report['rows'] if s['id']==student_id),None)
@@ -408,10 +438,10 @@ def student_detail(request,code,student_id):
         try:day=date.fromisoformat(day).isoformat()
         except ValueError:raise BusinessError('invalid_record_date','查询日期无效。')
     data['record_filters']={'kind':kind,'name':name,'date':day}
-    historical=term.end <= calendar.business_today()
+    historical=classroom.archived or report_is_frozen(report) or term.end <= calendar.business_today()
     if historical:
         data['records_unavailable']='activities' not in report
-        records=[{**a,'value':a['student_values'][str(student_id)]} for a in report.get('activities',[])
+        records=[{**a,'value':a['student_values'][str(student_id)]} for a in report_records(report)
                  if str(student_id) in a['student_values']
                  and (not month_start or month_start.isoformat()<=a['date']<monthly.next_month(month_start).isoformat())]
         if kind in ('class','activity','discipline'):records=[r for r in records if r['kind']==kind]
@@ -445,19 +475,27 @@ def student_detail(request,code,student_id):
 def roster_page(request,code):
     if request.method=='POST':return success(change_roster(request,code,payload(request)))
     classroom,actor,data=class_context(request,code,owner_only=True)
-    term=selected_term(request)
-    data['students']=class_report(classroom,term)['rows'] if term.end <= calendar.business_today() else roster_for(classroom,term)
+    term=selected_term(request,classroom)
+    data['students']=class_report(classroom,term)['rows'] if classroom.archived or term.end <= calendar.business_today() else roster_for(classroom,term)
     data['committee_accounts']=account_list(classroom)
     data['committee_limit']=ACTIVE_LIMIT
     data['committee_prefix']=classroom.committee_prefix
     current=calendar.term_for_date(calendar.business_today())
-    data['class_management']=management_status(classroom,current) if current and term==current else None
+    data['class_management']=management_status(classroom,current) if current and term==current and not classroom.archived else None
     return page(request,'roster',data)
 
 
 @guarded
-@require_POST
+@require_http_methods(['GET','POST'])
+@read_snapshot_view
 def class_management(request,code):
+    if request.method=='GET':
+        from manage.services.access import require_ready
+        classroom=get_class(code)
+        actor_for(request,classroom,owner_only=True)
+        require_ready(classroom)
+        term=calendar.writable_term(request.GET.get('term') or calendar.display_term().key)
+        return success(management_status(classroom,term))
     return success(manage_class(request,code,payload(request)))
 
 
@@ -523,9 +561,11 @@ def events_page(request,code):
     kind=request.GET.get('kind')
     if kind:query=query.filter(kind=kind)
     listing=Paginator(query,30).get_page(request.GET.get('page',1))
-    data['events']=[{'id':e.pk,'time':e.created_at.isoformat(timespec='seconds'),'actor_label':(('班主任' if e.actor_role=='owner' else '班委') + (' · '+e.actor_label if e.actor_label else '（旧共享授权）' if e.actor_role=='committee' else '')),
+    data['events']=[{'id':e.pk,'time':beijing_iso(e.created_at),'actor_label':(('班主任' if e.actor_role=='owner' else '班委') + (' · '+e.actor_label if e.actor_label else '（旧共享授权）' if e.actor_role=='committee' else '')),
         'actor_id':e.actor_id,
-        'kind':e.kind,'summary':e.summary,'affected_count':e.affected_count,'source':'网页','revision':e.revision} for e in listing]
+        'kind':e.kind,'summary':e.summary,'affected_count':e.affected_count,
+        'affected_unit':'条' if e.kind=='class_data_cleared' else '个' if e.kind=='class_deleted' else '人',
+        'source':'网页','revision':e.revision} for e in listing]
     data['pagination']={'page':listing.number,'pages':listing.paginator.num_pages,'count':listing.paginator.count}
     return page(request,'events',data)
 
@@ -536,7 +576,7 @@ def events_page(request,code):
 def public_report_settings(request,code):
     classroom=get_class(code)
     actor_for(request,classroom)
-    if request.method=='POST':return success(change_link(request,classroom,payload(request).get('action')))
+    if request.method=='POST':return success(change_link(request,classroom,payload(request)))
     return success(link_details(request,classroom))
 
 
@@ -545,12 +585,14 @@ def public_report_settings(request,code):
 @require_http_methods(['GET'])
 def public_report(request,token):
     # The URL itself is the only credential. Never accept a class or term selector.
-    if len(token)!=43 or not all(char.isalnum() or char in '-_' for char in token):
+    if re.fullmatch(r'[A-Za-z0-9_-]{43}',token) is None:
         raise Http404
     link=PublicClassReportLink.objects.select_related('inclass').filter(token_digest=token_digest(token),active=True).first()
     if not link:
         raise Http404
     snapshot=get_current_report(link.inclass)
+    if not PublicClassReportLink.objects.filter(pk=link.pk,token_digest=token_digest(token),active=True).exists():
+        raise Http404
     response=render(request,'workspace/public_report.html',{
         **snapshot.payload, 'generated_at':snapshot.generated_at})
     response['Cache-Control']='no-store, private'

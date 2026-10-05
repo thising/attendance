@@ -2,6 +2,7 @@
 import json
 from datetime import date
 from unittest.mock import patch
+from uuid import uuid4
 
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
@@ -26,6 +27,12 @@ class PublicAndThrottleTests(TestCase):
 
     def login(self, username='r9-teacher', password='bad-password'):
         return Client().post('/login/',json.dumps({'role':'owner','username':username,'password':password}),content_type='application/json')
+
+    def link_action(self, client, action):
+        url = f'/classes/{self.classroom.code}/public-report/'
+        revision = client.get(url).json()['data']['revision']
+        return client.post(url, {'action': action, 'revision': revision, 'submission_id': str(uuid4())},
+                           content_type='application/json')
 
     def test_owner_throttle_eighth_failure_blocks_for_thirty_minutes_and_clears_after_success(self):
         with patch('manage.services.login_guard.time.time',return_value=1000):
@@ -56,7 +63,7 @@ class PublicAndThrottleTests(TestCase):
         anon=Client()
         self.assertEqual(anon.get(settings).status_code,401)
         self.assertEqual(anon.get(f'/classes/{self.classroom.code}/?format=json').status_code,401)
-        issued=self.owner_client.post(settings,json.dumps({'action':'enable'}),content_type='application/json')
+        issued=self.link_action(self.owner_client,'enable')
         self.assertEqual(issued.status_code,200,issued.content)
         first=issued.json()['data']
         self.assertIn('<svg',first['qr_svg'])
@@ -70,13 +77,13 @@ class PublicAndThrottleTests(TestCase):
         self.assertNotContains(public,'2026 春季')
         self.assertEqual(public['Referrer-Policy'],'no-referrer')
         self.assertIn('no-store',public['Cache-Control'])
-        rotated=self.owner_client.post(settings,json.dumps({'action':'rotate'}),content_type='application/json').json()['data']
+        rotated=self.link_action(self.owner_client,'rotate').json()['data']
         self.assertNotEqual(first['url'],rotated['url'])
         self.assertEqual(anon.get(first['url']).status_code,404)
         self.assertEqual(anon.get(rotated['url']).status_code,200)
-        self.owner_client.post(settings,json.dumps({'action':'disable'}),content_type='application/json')
+        self.link_action(self.owner_client,'disable')
         self.assertEqual(anon.get(rotated['url']).status_code,404)
-        renewed=self.owner_client.post(settings,json.dumps({'action':'enable'}),content_type='application/json').json()['data']
+        renewed=self.link_action(self.owner_client,'enable').json()['data']
         self.assertNotEqual(rotated['url'],renewed['url'])
         with business_day('2027-08-01'):
             august=anon.get(renewed['url'])
@@ -116,11 +123,11 @@ class PublicAndThrottleTests(TestCase):
                                                      'password':'safe-committee-password-123'}),content_type='application/json')
         self.assertEqual(login.status_code,200,login.content)
         settings=f'/classes/{self.classroom.code}/public-report/'
-        issued=committee.post(settings,json.dumps({'action':'enable'}),content_type='application/json')
+        issued=self.link_action(committee,'enable')
         self.assertEqual(issued.status_code,200,issued.content)
         self.assertIn('<svg',committee.get(settings).json()['data']['qr_svg'])
         self.assertEqual(committee.get(f'/classes/{self.classroom.code}/?format=json').json()['data']['public_report']['active'],True)
-        self.assertEqual(committee.post(settings,json.dumps({'action':'rotate'}),content_type='application/json').status_code,403)
-        self.assertEqual(committee.post(settings,json.dumps({'action':'disable'}),content_type='application/json').status_code,403)
+        self.assertEqual(self.link_action(committee,'rotate').status_code,403)
+        self.assertEqual(self.link_action(committee,'disable').status_code,403)
         other=Class.objects.create(owner=self.owner,classname='另一班',started_on=date(2026,9,1))
         self.assertEqual(committee.get(f'/classes/{other.code}/public-report/').status_code,403)

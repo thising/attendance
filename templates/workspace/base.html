@@ -7,8 +7,8 @@
   <meta name="color-scheme" content="light dark">
   <title>{% block title %}笃行 · 学生操行管理系统{% endblock %}</title>
   <link rel="icon" href="{% static 'workspace/duxing-bamboo-small.svg' %}" type="image/svg+xml">
-  <link rel="stylesheet" href="{% static 'workspace/workspace.css' %}?v=20260926-class-management-1">
-  <script src="{% static 'workspace/workspace.js' %}?v=20260926-class-management-1" defer></script>
+  <link rel="stylesheet" href="{% static 'workspace/workspace.css' %}?v=20261005-r15-1">
+  <script src="{% static 'workspace/workspace.js' %}?v=20261005-r15-1" defer></script>
 </head>
 <body data-page="{{ page }}" class="{% if data.historical %}historical-view{% endif %}">
   <a class="skip-link" href="#workspace-main">跳至主要内容</a>
@@ -19,8 +19,9 @@
         <span><strong>笃行</strong><small>学生操行管理系统</small></span>
       </a>
       <nav class="main-nav" aria-label="系统导航">
-        <a data-global-nav="dashboard" href="/{% if data.term.key %}?term={{ data.term.key|urlencode }}{% endif %}" {% if page == 'dashboard' %}aria-current="page"{% endif %}><span data-icon="home"></span>工作台</a>
+        <a data-global-nav="dashboard" href="/{% if data.term.key %}?term={{ data.term.key|urlencode }}{% endif %}" {% if page == 'dashboard' and data.scope != 'archived' %}aria-current="page"{% endif %}><span data-icon="home"></span>工作台</a>
         {% if data.actor.role == 'owner' %}
+        <a data-global-nav="archived" href="/?scope=archived" {% if page == 'dashboard' and data.scope == 'archived' %}aria-current="page"{% endif %}><span data-icon="history"></span>历史班级</a>
         <a data-global-nav="rules" href="/rules/{% if data.term.key %}?term={{ data.term.key|urlencode }}{% endif %}" {% if page == 'rules' %}aria-current="page"{% endif %}><span data-icon="sliders"></span>评分规则</a>
         {% endif %}
       </nav>
@@ -45,7 +46,7 @@
       <main id="workspace-main" class="content" tabindex="-1">
         {% if data.classroom and data.actor.role != 'anonymous' %}
         <section id="class-context" class="class-context" aria-label="当前班级">
-          <div class="breadcrumbs"><a data-global-nav="dashboard" href="/{% if data.term.key %}?term={{ data.term.key|urlencode }}{% endif %}">工作台</a><span aria-hidden="true">/</span><span>班级空间</span></div>
+          <div class="breadcrumbs">{% if data.classroom.archived %}<a data-global-nav="archived" href="/?scope=archived">历史班级</a>{% else %}<a data-global-nav="dashboard" href="/{% if data.term.key %}?term={{ data.term.key|urlencode }}{% endif %}">工作台</a>{% endif %}<span aria-hidden="true">/</span><span>班级空间</span></div>
           <div class="class-context-heading"><span data-icon="book"></span><strong id="class-context-name">{{ data.classroom.name }}</strong><span id="class-context-term">{{ data.term.label }}</span></div>
           <nav class="class-nav" aria-label="班级导航">
             <a data-nav="class" href="/classes/{{ data.classroom.code|urlencode }}/{% if data.term.key %}?term={{ data.term.key|urlencode }}{% endif %}" {% if page == 'class' or page == 'student' %}aria-current="page"{% endif %}><span data-icon="book"></span>班级总览</a>
@@ -57,7 +58,7 @@
           </nav>
         </section>
         {% endif %}
-        {% if data.readonly %}<div class="notice readonly-notice"><span data-icon="lock"></span><div><strong>{{ data.readonly_label|default:'已结束 · 只读' }}</strong><p>{{ data.readonly_reason|default:'本学期的名单、业务记录、评分规则及成绩仅可查看。' }}</p></div></div>{% endif %}
+        {% if data.readonly %}<div class="notice readonly-notice"><span data-icon="lock"></span><div><strong>{% if data.scope == 'archived' %}历史班级 · 只读{% else %}{{ data.readonly_label|default:'已结束 · 只读' }}{% endif %}</strong><p>{% if data.scope == 'archived' %}各班级的名单、业务记录、评分规则及成绩按归档时依据只读展示。{% else %}{{ data.readonly_reason|default:'本学期的名单、业务记录、评分规则及成绩仅可查看。' }}{% endif %}</p></div></div>{% endif %}
         <noscript><div class="notice">请启用 JavaScript 以查看工作台和使用快速录入。当前尚未提交任何内容。</div></noscript>
         {% block content %}{% endblock %}
       </main>

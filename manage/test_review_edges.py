@@ -20,7 +20,7 @@ from manage.models import (
     Activity, AuditEvent, Class, OwnerScoringSettings, Report, RosterVersion,
     ScoringPolicyVersion, Student, WEIGHT_DEFAULTS,
 )
-from manage.services import calendar, roster, rules, scoring
+from manage.services import calendar, roster, rules, scoring, class_management
 
 
 class ReviewEdgeTests(TransactionTestCase):
@@ -55,18 +55,20 @@ class ReviewEdgeTests(TransactionTestCase):
             'weights': {**WEIGHT_DEFAULTS, 'late': '2.00'},
         }
 
-    def test_archived_current_class_is_in_owner_rule_preview_and_audit(self):
+    def test_ended_class_is_excluded_from_rule_preview_and_audit(self):
         active = self.classroom('A合成班')
         archived = self.classroom('B合成班')
-        roster.change_roster(self.request, archived.code, {
+        class_management.manage_class(self.request, archived.code, {
             'action': 'archive', 'revision': archived.revision,
+            'report_revision': archived.report_revision, 'freeze_date': self.day.isoformat(),
+            'confirmation': archived.classname,
             'term_key': self.term.key, 'submission_id': str(uuid4()),
         })
         archived.refresh_from_db()
         self.assertTrue(archived.archived)
         preview = rules.change_rules(self.request, self.rule_payload(action='preview'))['preview']
-        self.assertEqual({row['id'] for row in preview['classes']}, {active.pk, archived.pk})
-        self.assertEqual(preview['student_count'], 2)
+        self.assertEqual({row['id'] for row in preview['classes']}, {active.pk})
+        self.assertEqual(preview['student_count'], 1)
         self.assertEqual(
             {(row['student_count'], row['changed_count'], row['max_absolute_change'])
              for row in preview['classes']},
@@ -76,9 +78,9 @@ class ReviewEdgeTests(TransactionTestCase):
         for classroom in (active, archived):
             with self.subTest(classroom=classroom.classname):
                 report = scoring.class_report(classroom, self.term)
-                self.assertEqual(report['summary']['average'], '59.00')
+                self.assertEqual(report['summary']['average'], '59.50' if classroom.archived else '59.00')
                 self.assertEqual(
-                    AuditEvent.objects.filter(inclass=classroom, kind='rules_updated').count(), 1,
+                    AuditEvent.objects.filter(inclass=classroom, kind='rules_updated').count(), 0 if classroom.archived else 1,
                 )
 
     def test_busy_json_and_html_reads_return_retryable_503(self):

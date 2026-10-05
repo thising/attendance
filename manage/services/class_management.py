@@ -1,15 +1,17 @@
 """Owner-only destructive class maintenance with current-term boundaries."""
 from django.db.models import Q
+from django.utils import timezone
 
 from manage.models import (
-    Activity, AuditEvent, ClassDailyUsage, ClassTerm, CommitteeAccount,
+    Activity, AuditEvent, Class, ClassDailyUsage, ClassTerm, CommitteeAccount,
     RosterVersion, Student, Submission, SummaryCount,
 )
 from . import calendar
 from .access import actor_for, get_class, owner_actor, require_ready
 from .errors import BusinessError
 from .report_snapshots import mark_report_dirty
-from .scoring import roster_for
+from .scoring import roster_for, freeze_class_term, validate_ended_archive
+from .timestamps import beijing_iso
 from .writes import atomic_write, event, once, require_revision
 
 
@@ -49,11 +51,16 @@ def management_status(classroom, term):
     record_count = _current_records(classroom, term).count()
     has_history = _has_history(classroom, term)
     return {
+        'class_id': classroom.pk, 'term_key': term.key,
+        'class_revision': classroom.revision, 'report_revision': classroom.report_revision,
+        'freeze_date': calendar.business_today().isoformat(),
+        'freeze_months': [f'{year:04d}-{month:02d}' for year, month in term.months()],
+        'can_archive': not classroom.archived and not classroom.legacy_pending,
         'student_count': student_count,
         'record_count': record_count,
         'has_history': has_history,
-        'can_clear_students': student_count > 0 and record_count == 0,
-        'can_delete': student_count == 0 and record_count == 0 and not has_history,
+        'can_clear_students': not classroom.archived and not classroom.legacy_pending and student_count > 0 and record_count == 0,
+        'can_delete': not classroom.archived and not classroom.legacy_pending and student_count == 0 and record_count == 0 and not has_history,
     }
 
 
@@ -76,16 +83,44 @@ def manage_class(request, code, payload):
         return once(actor, None, f'class-management:{int(code)}:delete_class', payload,
                     lambda: (_ for _ in ()).throw(missing))
     actor = actor_for(request, classroom, owner_only=True)
-    require_ready(classroom)
-    term = calendar.writable_term(payload.get('term_key'))
-    _confirm_name(classroom, payload.get('confirmation'))
-
-    if action not in ('clear_data', 'clear_students', 'delete_class'):
+    if action not in ('clear_data', 'clear_students', 'delete_class', 'archive'):
         raise BusinessError('invalid_action', '不支持此班级管理操作。')
 
     def apply():
+        # Refetch after acquiring the serialized write boundary; an earlier
+        # page's class object is never authorization or confirmation evidence.
+        classroom.refresh_from_db()
+        require_ready(classroom)
+        term = calendar.writable_term(payload.get('term_key'))
+        _confirm_name(classroom, payload.get('confirmation'))
         require_revision(classroom.revision, payload.get('revision'))
+        if (type(payload.get('report_revision')) is not int or
+                payload['report_revision'] != classroom.report_revision):
+            raise BusinessError('management_scope_changed', '业务数据已变化，请重新预览并确认操作范围。', 409)
         status = management_status(classroom, term)
+
+        if action == 'archive':
+            if payload.get('freeze_date') != status['freeze_date']:
+                raise BusinessError('management_scope_changed', '结束管理日期已变化，请重新预览冻结范围。', 409)
+            freeze_day = calendar.business_today()
+            if freeze_day.isoformat() != status['freeze_date']:
+                raise BusinessError('management_scope_changed', '结束管理日期已变化，请重新预览冻结范围。', 409)
+            freeze_class_term(classroom, term, today=freeze_day)
+            if calendar.business_today() != freeze_day:
+                raise BusinessError('management_scope_changed', '结束管理期间日期发生切换，请重新预览冻结范围。', 409)
+            classroom.archived = True
+            classroom.ended_at = timezone.now()
+            classroom.ended_term_key = term.key
+            classroom.revision += 1
+            classroom.save(update_fields=['archived', 'ended_at', 'ended_term_key', 'revision'])
+            validate_ended_archive(classroom)
+            event(actor, classroom, 'class_archived',
+                  f'结束班级管理，冻结{term.label}截至{status["freeze_date"]}的名单、记录与成绩',
+                  status['student_count'], revision=classroom.revision)
+            mark_report_dirty(classroom)
+            return {'action': action, 'revision': classroom.revision,
+                    'ended_at': beijing_iso(classroom.ended_at), 'ended_term_key': term.key,
+                    'url': f'/classes/{code}/?term={term.key}'}
 
         if action == 'clear_data':
             if status['record_count'] == 0:

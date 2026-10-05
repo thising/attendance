@@ -32,6 +32,9 @@ class SnapshotWorkflowTests(TestCase):
         self.client.force_login(self.owner)
 
     def post(self, path, data):
+        if path.endswith('/public-report/'):
+            data = {**data, 'submission_id': str(uuid4()),
+                    'revision': self.client.get(path).json()['data']['revision']}
         response = self.client.post(path, json.dumps(data), content_type='application/json')
         self.assertEqual(response.status_code, 200, response.content)
         return response.json()['data']
@@ -149,7 +152,7 @@ class SnapshotConcurrencyTests(TransactionTestCase):
             owner_client = Client()
             owner_client.force_login(owner)
             issued = owner_client.post(f'/classes/{classroom.code}/public-report/',
-                json.dumps({'action': 'enable'}), content_type='application/json')
+                json.dumps({'action': 'enable', 'revision': 0, 'submission_id': str(uuid4())}), content_type='application/json')
             self.assertEqual(issued.status_code, 200, issued.content)
             url = issued.json()['data']['url']
             Class.objects.filter(pk=classroom.pk).update(report_revision=F('report_revision') + 1)

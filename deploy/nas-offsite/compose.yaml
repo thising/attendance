@@ -1,0 +1,89 @@
+name: duxing-offsite
+
+services:
+  rest-server:
+    image: ${REST_SERVER_IMAGE}
+    container_name: duxing-rest-server
+    restart: unless-stopped
+    user: "1003:100"
+    expose:
+      - "8000"
+    command:
+      - --path
+      - /data
+      - --listen
+      - :8000
+      - --append-only
+      - --private-repos
+      - --htpasswd-file
+      - /run/secrets/rest-server.htpasswd
+      - --log
+      - "-"
+    volumes:
+      - ../encrypted-system-repository:/data
+      - ./secrets/rest-server.htpasswd:/run/secrets/rest-server.htpasswd:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=0700,uid=1003,gid=100
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  rest-gateway:
+    image: ${REST_GATEWAY_IMAGE}
+    container_name: duxing-rest-gateway
+    restart: unless-stopped
+    user: "1003:100"
+    depends_on:
+      - rest-server
+    ports:
+      - "${NAS_TAILNET_IP}:${REST_PORT}:8000"
+    command:
+      - TCP-LISTEN:8000,fork,reuseaddr,range=${SOURCE_TAILNET_IP}/32
+      - TCP:rest-server:8000
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  readable-receiver:
+    image: ${READABLE_RECEIVER_IMAGE}
+    container_name: duxing-readable-receiver
+    restart: unless-stopped
+    user: "1003:100"
+    command: ["rsync", "--daemon", "--no-detach", "--config=/etc/rsyncd.conf"]
+    ports:
+      - "${NAS_TAILNET_IP}:${RSYNC_PORT}:1873"
+    volumes:
+      - ../readable-archive/incoming:/data/incoming
+      - ../readable-archive/snapshots:/data/snapshots:ro
+      - ../operator-logs:/logs
+      - ./rsyncd.conf:/etc/rsyncd.conf:ro
+      - ./secrets/rsyncd.secrets:/run/secrets/rsyncd.secrets:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=0700,uid=1003,gid=100
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  readable-finalizer:
+    image: ${READABLE_RECEIVER_IMAGE}
+    container_name: duxing-readable-finalizer
+    restart: unless-stopped
+    user: "1003:100"
+    command: ["/ops/finalize-loop.sh"]
+    volumes:
+      - ../readable-archive:/data
+      - ../operator-logs:/logs
+      - ./finalize-loop.sh:/ops/finalize-loop.sh:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=0700,uid=1003,gid=100
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true

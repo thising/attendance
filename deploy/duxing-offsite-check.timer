@@ -1,0 +1,10 @@
+[Unit]
+Description=Monthly Duxing NAS recovery check
+
+[Timer]
+OnCalendar=*-*-01 11:30:00 Asia/Shanghai
+Persistent=true
+Unit=duxing-offsite-check.service
+
+[Install]
+WantedBy=timers.target

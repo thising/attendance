@@ -10,10 +10,11 @@ from django.utils import timezone
 from manage.models import Class, CurrentClassReport, WEIGHT_DEFAULTS
 from . import calendar
 from .errors import BusinessError
-from .scoring import class_report
+from .scoring import class_report, ended_term, report_month_keys, validate_ended_archive
+from .timestamps import beijing_iso
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def report_identity(today):
@@ -32,8 +33,15 @@ def build_report_payload(classroom, today):
     """Project only the public score table; exclude internal IDs and activity facts."""
     term = calendar.term_for_date(today)
     payload = {'class_name': classroom.classname, 'term': None, 'tables': []}
+    if classroom.archived:
+        payload.update(ended=True, frozen_at=beijing_iso(classroom.ended_at))
     if term is None:
         return payload
+    if classroom.archived:
+        final_term = ended_term(classroom)
+        if term.start > final_term.start:
+            payload['ended'] = True
+            return payload
     payload['term'] = {'key': term.key, 'label': term.label}
     try:
         report = class_report(classroom, term, today=today)
@@ -45,8 +53,8 @@ def build_report_payload(classroom, today):
     payload['tables'].append({'key': 'term', 'label': '学期汇总',
                               'score_label': '学期分数',
                               'rows': [public_row(row) for row in rows]})
-    for year, month in term.months(today):
-        key = f'{year:04d}-{month:02d}'
+    for key in report_month_keys(report, term, today):
+        year, month = map(int, key.split('-'))
         monthly_rows = []
         for row in rows:
             cell = next((item for item in row['months'] if item['key'] == key), None)
@@ -75,6 +83,8 @@ def _refresh_once(class_id, today, verify_content):
     # either can read a stale snapshot. The replacement commits atomically.
     with transaction.atomic():
         classroom = Class.objects.get(pk=class_id)
+        if classroom.archived:
+            validate_ended_archive(classroom)
         snapshot = CurrentClassReport.objects.filter(inclass_id=class_id).first()
         current = is_current(snapshot, classroom, today)
         if current and not verify_content:
@@ -112,7 +122,10 @@ def refresh_report(class_id, today=None, verify_content=False):
 
 def get_current_report(classroom, today=None):
     today = today or calendar.business_today()
-    classroom = Class.objects.only('id', 'report_revision').get(pk=classroom.pk)
+    classroom = Class.objects.get(pk=classroom.pk)
+    if classroom.archived:
+        # Even a structurally valid cached report must not mask a lost freeze.
+        validate_ended_archive(classroom)
     snapshot = CurrentClassReport.objects.filter(inclass=classroom).first()
     if is_current(snapshot, classroom, today):
         return snapshot

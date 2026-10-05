@@ -20,9 +20,12 @@ class PairedBackupTests(unittest.TestCase):
             environment = root / 'private.env'
             environment.write_text('DUXING_CREDENTIAL_KEY=test-only\n')
             output = root / 'backups'
+            release = root / 'synthetic-release'
+            release.mkdir()
             with patch.object(backup_sqlite, 'DATABASE', database), \
                     patch.object(backup_sqlite, 'ENVIRONMENT', environment), \
                     patch.object(backup_sqlite, 'ROOT', output), \
+                    patch.object(backup_sqlite, 'RELEASE', release), \
                     patch.object(backup_sqlite.os, 'geteuid', return_value=0):
                 backup_sqlite.main()
                 with sqlite3.connect(database) as connection:
@@ -35,6 +38,8 @@ class PairedBackupTests(unittest.TestCase):
             for directory in copies:
                 self.assertEqual(directory.stat().st_mode & 0o077, 0)
                 manifest = json.loads((directory / 'manifest.json').read_text())
+                self.assertEqual(manifest['release'], 'synthetic-release')
+                self.assertEqual(manifest['format_version'], 2)
                 self.assertEqual(manifest['database_sha256'], backup_sqlite.digest(directory / 'managedb.sqlite3'))
                 self.assertEqual(manifest['environment_sha256'], backup_sqlite.digest(directory / 'ams.env'))
                 self.assertEqual((directory / 'ams.env').read_text(), environment.read_text())

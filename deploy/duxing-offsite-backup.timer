@@ -1,0 +1,10 @@
+[Unit]
+Description=Copy Duxing backups while the home NAS is scheduled to be on
+
+[Timer]
+OnCalendar=*-*-* 11,18,23:00:00 Asia/Shanghai
+Persistent=true
+Unit=duxing-offsite-backup.service
+
+[Install]
+WantedBy=timers.target

@@ -12,7 +12,7 @@ from .read_snapshot import consistent_read
 from manage.models import WEIGHT_DEFAULTS
 from . import calendar
 from .errors import BusinessError
-from .scoring import class_report
+from .scoring import class_report, report_month_keys
 
 
 def month_key(start):
@@ -84,7 +84,11 @@ def monthly_overview(classroom, term, report=None, today=None):
     """Return two preloaded month columns aligned to the selected term's roster."""
     today = today or calendar.business_today()
     report = report if report is not None else class_report(classroom, term, today=today)
-    if term == calendar.display_term(today):
+    if report.get('frozen_reason') == 'class-ended' and report_month_keys(report, term, today):
+        anchor = date.fromisoformat(report_month_keys(report, term, today)[-1] + '-01')
+        labels = ('结束月', '前一月')
+        caption = '班级已结束管理，仅展示归档时已进入的月份。'
+    elif term == calendar.display_term(today):
         anchor = today.replace(day=1)
         labels = ('本月', '上月')
         caption = '按所选学期名单查看本月与上月；跨学期月份使用当时名单和评分依据。'
@@ -118,7 +122,7 @@ def term_monthly_overview(classroom, term, report=None, today=None):
     """Every elapsed month in the selected term, without crossing term boundaries."""
     today = today or calendar.business_today()
     report = report if report is not None else class_report(classroom, term, today=today)
-    starts = [date(year, month, 1) for year, month in term.months(today)]
+    starts = [date.fromisoformat(key + '-01') for key in report_month_keys(report, term, today)]
     months = [{'key': month_key(start), 'label': month_label(start), 'term_key': term.key,
                'available': True} for start in starts]
     rows = [{'id': row['id'], 'number': row['number'], 'name': row['name'],

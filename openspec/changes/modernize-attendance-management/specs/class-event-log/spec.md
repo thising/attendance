@@ -40,6 +40,10 @@
 - **WHEN** 负责人成功保存当前及未来学期评分规则
 - **THEN** 其受影响班级各显示一次相关更新摘要，其他负责人的班级不可见该事件
 
+#### Scenario: Ended class is not affected by later policy updates
+- **WHEN** 负责人修改规则时某班级已结束管理（R15 本地实现、尚未发布）
+- **THEN** 不向该班新增本次规则应用日志，其原有操作记录继续保留
+
 ### Requirement: Secrets excluded from summaries
 系统 SHALL 不向概要日志写入明文或加密密码副本、token、原始Session ID、Cookie或完整敏感请求内容。
 
